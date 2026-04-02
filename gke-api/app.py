@@ -24,6 +24,9 @@ task_queue = Queue()
 # Secrets loaded at startup
 _secrets = {}
 
+# Pi liveness state
+pi_health = {"online": False, "last_checked": None, "error": "not yet checked"}
+
 
 def get_secret(secret_id: str) -> str:
     client = secretmanager.SecretManagerServiceClient()
@@ -48,6 +51,38 @@ def require_auth(f):
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated
+
+
+def pi_monitor():
+    """Background thread: checks Pi reachability every 30 seconds."""
+    import requests
+    proxies = {"http": "socks5h://localhost:1055", "https": "socks5h://localhost:1055"}
+    # Wait for secrets to be loaded before first check
+    while not _secrets.get("pi-tunnel-url"):
+        time.sleep(1)
+
+    while True:
+        try:
+            resp = requests.get(
+                f"{_secrets['pi-tunnel-url']}/status",
+                headers={"X-Pi-Token": _secrets["pi-execute-token"]},
+                timeout=10,
+                proxies=proxies,
+            )
+            if resp.status_code == 200:
+                if not pi_health["online"]:
+                    logger.info("Pi is back online")
+                pi_health["online"] = True
+                pi_health["error"] = None
+            else:
+                raise Exception(f"HTTP {resp.status_code}")
+        except Exception as e:
+            if pi_health["online"]:
+                logger.error("Pi went offline: %s", e)
+            pi_health["online"] = False
+            pi_health["error"] = str(e)
+        pi_health["last_checked"] = time.time()
+        time.sleep(30)
 
 
 def worker():
@@ -89,12 +124,28 @@ def index():
     return jsonify({"status": "ok", "service": "pi-agent-api"})
 
 
+@app.route("/health")
+def health():
+    return jsonify({
+        "api": "ok",
+        "pi": {
+            "online": pi_health["online"],
+            "last_checked": pi_health["last_checked"],
+            "error": pi_health["error"],
+        },
+    })
+
+
 @app.route("/tasks", methods=["POST"])
 @require_auth
 def create_task():
     data = request.get_json()
     if not data or "description" not in data:
         return jsonify({"error": "Missing 'description' field"}), 400
+
+    if not pi_health["online"]:
+        logger.warning("Task rejected — Pi is offline: %s", pi_health["error"])
+        return jsonify({"error": "Pi is offline", "detail": pi_health["error"]}), 503
 
     task_id = str(uuid.uuid4())
     tasks[task_id] = {
@@ -193,5 +244,6 @@ def stream_task(task_id):
 if __name__ == "__main__":
     load_secrets()
     threading.Thread(target=worker, daemon=True).start()
+    threading.Thread(target=pi_monitor, daemon=True).start()
     logger.info("pi-agent-api started")
     app.run(host="0.0.0.0", port=8080)
