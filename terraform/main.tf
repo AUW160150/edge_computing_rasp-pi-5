@@ -153,3 +153,60 @@ resource "google_secret_manager_secret" "tailscale_auth_key" {
   }
   depends_on = [google_project_service.secretmanager]
 }
+
+# ── CI/CD — Workload Identity Federation ─────────────────────────────────────
+
+resource "google_project_service" "iam_credentials" {
+  service            = "iamcredentials.googleapis.com"
+  disable_on_destroy = false
+}
+
+# Service account used by GitHub Actions
+resource "google_service_account" "github_actions" {
+  account_id   = "github-actions-sa"
+  display_name = "GitHub Actions"
+}
+
+# Allow GitHub Actions SA to deploy to GKE
+resource "google_project_iam_member" "github_actions_container_dev" {
+  project = var.project_id
+  role    = "roles/container.developer"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+# Allow GitHub Actions SA to push images to Artifact Registry
+resource "google_project_iam_member" "github_actions_artifact_writer" {
+  project = var.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
+# Workload Identity Pool
+resource "google_iam_workload_identity_pool" "github" {
+  workload_identity_pool_id = "github-pool"
+  display_name              = "GitHub Actions Pool"
+  depends_on                = [google_project_service.iam_credentials]
+}
+
+# Workload Identity Provider — trusts GitHub OIDC tokens
+resource "google_iam_workload_identity_pool_provider" "github" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-provider"
+  display_name                       = "GitHub Provider"
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.repository" = "assertion.repository"
+  }
+}
+
+# Allow GitHub Actions (from this repo) to impersonate the SA
+resource "google_service_account_iam_member" "github_actions_wi" {
+  service_account_id = google_service_account.github_actions.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/rodela/rodela-trial-project"
+}
