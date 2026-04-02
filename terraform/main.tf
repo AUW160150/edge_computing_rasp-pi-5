@@ -63,6 +63,14 @@ resource "google_container_cluster" "pi_agent" {
   initial_node_count       = 1
 
   depends_on = [google_project_service.container]
+
+  lifecycle {
+    ignore_changes = [
+      initial_node_count,
+      node_config,
+      node_pool,
+    ]
+  }
 }
 
 resource "google_container_node_pool" "pi_agent_nodes" {
