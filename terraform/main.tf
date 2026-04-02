@@ -86,9 +86,11 @@ resource "google_container_node_pool" "pi_agent_nodes" {
   node_config {
     machine_type = "e2-small"
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
+    service_account = "default"
+  }
 
-    # Uses the default compute service account (created automatically by GCP)
-    service_account = "${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+  lifecycle {
+    ignore_changes = all
   }
 }
 
