@@ -48,12 +48,18 @@ def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_k
     commands_run = []
 
     for _ in range(10):  # max 10 tool-use rounds
+        if emit:
+            emit("system", {"text": "Calling Anthropic API (Claude Opus 4)…", "phase": "anthropic"})
+
         response = client.messages.create(
             model="claude-opus-4-6",
             max_tokens=1024,
             tools=tools,
             messages=messages,
         )
+
+        if emit:
+            emit("system", {"text": f"Anthropic responded → {response.stop_reason}", "phase": "anthropic"})
 
         if response.stop_reason == "end_turn":
             summary = next(
@@ -78,7 +84,7 @@ def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_k
                     command = block.input["command"]
                     if emit:
                         emit("command", {"command": command})
-                    output = _execute_on_pi(command, pi_url, pi_token)
+                    output = _execute_on_pi(command, pi_url, pi_token, emit=emit)
                     if emit:
                         emit("output", {"command": command, "output": output})
                     commands_run.append({"command": command, "output": output})
@@ -95,9 +101,11 @@ def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_k
     return {"summary": "Reached max iterations.", "commands_run": commands_run}
 
 
-def _execute_on_pi(command: str, pi_url: str, pi_token: str) -> str:
+def _execute_on_pi(command: str, pi_url: str, pi_token: str, emit=None) -> str:
     """POST a command to the Pi's /execute endpoint and return the output string."""
-    # Route Pi traffic through Tailscale SOCKS5 proxy
+    if emit:
+        emit("system", {"text": "Routing through Tailscale SOCKS5 → Pi…", "phase": "tailscale"})
+
     proxies = {"http": "socks5h://localhost:1055", "https": "socks5h://localhost:1055"}
     try:
         resp = requests.post(
@@ -109,14 +117,23 @@ def _execute_on_pi(command: str, pi_url: str, pi_token: str) -> str:
         )
         if resp.status_code == 200:
             data = resp.json()
-            output = data.get("output", "").strip() or f"(exit code {data.get('exit_code', '?')})"
-            logger.info("Pi command exit_code=%s command=%r", data.get("exit_code"), command)
+            exit_code = data.get("exit_code", "?")
+            output = data.get("output", "").strip() or f"(exit code {exit_code})"
+            logger.info("Pi command exit_code=%s command=%r", exit_code, command)
+            if emit:
+                emit("system", {"text": f"Pi responded (exit_code={exit_code})", "phase": "pi"})
             return output
         logger.warning("Pi returned HTTP %s for command=%r", resp.status_code, command)
+        if emit:
+            emit("system", {"text": f"Pi returned HTTP {resp.status_code}", "phase": "pi"})
         return f"Error: HTTP {resp.status_code} — {resp.text}"
     except requests.Timeout:
         logger.error("Pi command timed out: %r", command)
+        if emit:
+            emit("system", {"text": "Pi command timed out after 60s", "phase": "pi"})
         return "Error: command timed out after 60s"
     except Exception as e:
         logger.error("Pi connection error for command=%r: %s", command, e)
+        if emit:
+            emit("system", {"text": f"Pi connection error: {e}", "phase": "pi"})
         return f"Connection error: {e}"

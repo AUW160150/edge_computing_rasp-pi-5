@@ -97,11 +97,17 @@ def worker():
         logger.info("Task %s started: %s", task_id, description)
         try:
             def emit(event_type, data):
-                tasks[task_id]["logs"].append({"type": event_type, "data": data})
+                tasks[task_id]["logs"].append({
+                    "type": event_type,
+                    "data": data,
+                    "ts": time.time(),
+                })
                 if event_type == "command":
                     logger.info("Task %s agent running command: %s", task_id, data.get("command"))
                 elif event_type == "output" and data.get("output", "").startswith("Connection error"):
                     logger.error("Task %s Pi connection error: %s", task_id, data.get("output"))
+
+            emit("system", {"text": "Worker thread picked up task", "phase": "gke"})
 
             result = run_agent(
                 task_description=description,
@@ -112,10 +118,12 @@ def worker():
             )
             tasks[task_id]["status"] = "done"
             tasks[task_id]["result"] = result
+            emit("system", {"text": "Task completed successfully ✓", "phase": "gke"})
             logger.info("Task %s completed successfully", task_id)
         except Exception as e:
             tasks[task_id]["status"] = "error"
             tasks[task_id]["result"] = {"error": str(e)}
+            emit("system", {"text": f"Task failed: {e}", "phase": "gke"})
             logger.error("Task %s failed: %s", task_id, e)
         finally:
             task_queue.task_done()
@@ -157,6 +165,11 @@ def create_task():
         "result": None,
         "logs": [],
     }
+    tasks[task_id]["logs"].append({
+        "type": "system",
+        "data": {"text": "HTTP POST /tasks received by GKE API", "phase": "gke"},
+        "ts": time.time(),
+    })
     task_queue.put(task_id)
     logger.info("Task %s queued: %s", task_id, data["description"])
     return jsonify({"task_id": task_id, "status": "queued"}), 202

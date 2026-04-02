@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pi Agent Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --surface2:  #22263a;
+      --border:    #2a2d3a;
+      --accent:    #6366f1;
+      --accent-dim:#3730a3;
+      --green:     #22c55e;
+      --green-dim: #166534;
+      --red:       #ef4444;
+      --red-dim:   #7f1d1d;
+      --yellow:    #eab308;
+      --yellow-dim:#713f12;
+      --blue:      #38bdf8;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --mono:      'JetBrains Mono', 'Fira Code', monospace;
+      --radius:    8px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    #header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #header h1 span.logo {
+      font-size: 20px;
+    }
+    #header-meta {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* ── Pills / badges ── */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .pill.online  { background: #14532d; color: var(--green); }
+    .pill.offline { background: var(--red-dim); color: var(--red); }
+    .pill.checking { background: var(--surface2); color: var(--muted); }
+    .pill.queued  { background: #1e3a5f; color: var(--blue); }
+    .pill.running { background: var(--accent-dim); color: #a5b4fc; }
+    .pill.done    { background: var(--green-dim); color: var(--green); }
+    .pill.error   { background: var(--red-dim); color: var(--red); }
+
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .dot.pulse {
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ── Layout ── */
+    #main {
+      display: flex;
+      height: calc(100vh - 49px);
+      overflow: hidden;
+    }
+    .left-col { flex-shrink: 0; }
+    .right-col { flex: 1; min-width: 0; }
+    .left-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+    .right-col {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ── Auth Panel ── */
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+    input[type="password"], input[type="text"], textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+    input[type="password"]:focus, input[type="text"]:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+    .auth-status {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ── Buttons ── */
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px 16px;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover:not(:disabled) { background: var(--border); }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-icon { background: transparent; color: var(--muted); padding: 4px 6px; font-size: 14px; }
+    .btn-icon:hover { color: var(--text); }
+
+    /* ── Task Form ── */
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.5;
+    }
+    .form-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+    }
+    .char-count { font-size: 11px; color: var(--muted); }
+    .warning-banner {
+      background: var(--yellow-dim);
+      border: 1px solid var(--yellow);
+      color: var(--yellow);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-size: 12px;
+      margin-top: 8px;
+      display: none;
+    }
+    .warning-banner.visible { display: block; }
+
+    /* ── Pi Status ── */
+    .metric-row {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .metric {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .metric-header span:last-child { color: var(--text); font-weight: 500; }
+    .progress-bar {
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.4s ease;
+      background: var(--accent);
+    }
+    .progress-fill.warn { background: var(--yellow); }
+    .progress-fill.danger { background: var(--red); }
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+      height: 6px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* ── Task History ── */
+    #task-history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .task-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.1s;
+      border: 1px solid transparent;
+    }
+    .task-row:hover { background: var(--surface2); }
+    .task-row.active { background: var(--surface2); border-color: var(--accent); }
+    .task-desc {
+      flex: 1;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .task-time { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .empty-state {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    /* ── Live Feed ── */
+    #live-feed-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    #live-feed-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    #feed-task-id {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    #live-feed-entries {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .feed-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      gap: 8px;
+    }
+    .feed-empty .icon { font-size: 32px; opacity: 0.3; }
+
+    /* Feed entry rows */
+    .entry {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      border-left: 3px solid transparent;
+      background: var(--surface);
+    }
+    .entry.thought {
+      border-left-color: var(--muted);
+      font-style: italic;
+      color: var(--muted);
+    }
+    .entry.command {
+      border-left-color: var(--accent);
+      background: #13152a;
+    }
+    .entry.output {
+      border-left-color: var(--green);
+      background: #0d1f14;
+    }
+    .entry.summary {
+      border-left-color: var(--yellow);
+      background: #1a1506;
+    }
+    .entry.status-change {
+      background: transparent;
+      border-left-color: transparent;
+      padding: 4px 0;
+    }
+    .entry.stream-error {
+      border-left-color: var(--red);
+      background: #1f0d0d;
+    }
+    .entry-icon {
+      font-size: 13px;
+      flex-shrink: 0;
+      margin-top: 1px;
+      width: 16px;
+      text-align: center;
+    }
+    .entry-body { flex: 1; min-width: 0; }
+    .entry-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 3px;
+    }
+    .entry.thought .entry-label { color: var(--muted); }
+    .entry.command .entry-label { color: #a5b4fc; }
+    .entry.output  .entry-label { color: var(--green); }
+    .entry.summary .entry-label { color: var(--yellow); }
+    .entry-text {
+      font-size: 13px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .entry.command .entry-text,
+    .entry.output  .entry-text {
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .entry.command .entry-text { color: #c7d2fe; }
+    .entry.output  .entry-text { color: #86efac; }
+
+    /* ── Vertical resize handle ── */
+    #v-resize-handle {
+      height: 5px;
+      background: var(--border);
+      cursor: row-resize;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    #v-resize-handle:hover, #v-resize-handle.dragging { background: var(--accent); }
+
+    /* ── Result Panel ── */
+    #result-panel {
+      border-top: none;
+      background: var(--surface);
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    #result-panel.hidden { display: none; }
+    #result-inner { padding: 16px; }
+    #result-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    #result-summary {
+      font-size: 13px;
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .commands-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .commands-table th {
+      text-align: left;
+      padding: 6px 10px;
+      background: var(--surface2);
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 11px;
+    }
+    .commands-table td {
+      padding: 6px 10px;
+      border-top: 1px solid var(--border);
+      font-family: var(--mono);
+      vertical-align: top;
+      font-size: 11px;
+    }
+    .commands-table td:first-child { color: #c7d2fe; white-space: nowrap; }
+    .commands-table td:last-child { color: #86efac; white-space: pre-wrap; word-break: break-word; }
+    .result-error {
+      background: var(--red-dim);
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+    }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed;
+      top: 60px;
+      right: 16px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: all;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      min-width: 260px;
+      max-width: 360px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      animation: slideIn 0.2s ease;
+    }
+    @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+    .toast.info    { background: var(--surface2); border: 1px solid var(--border); }
+    .toast.success { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
+    .toast.warning { background: var(--yellow-dim); border: 1px solid var(--yellow); color: var(--yellow); }
+    .toast.error   { background: var(--red-dim); border: 1px solid var(--red); color: var(--red); }
+    .toast-close { cursor: pointer; opacity: 0.6; font-size: 16px; background: none; border: none; color: inherit; padding: 0; }
+
+    /* ── Scrollbars ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── System trail ── */
+    .entry.system {
+      border-left-color: transparent;
+      background: transparent;
+      padding: 2px 12px;
+    }
+    .entry.system .entry-body {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .system-time {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .system-text {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .system-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .phase-gke       { background: var(--blue); }
+    .phase-anthropic { background: #a855f7; }
+    .phase-tailscale { background: var(--green); }
+    .phase-pi        { background: var(--yellow); }
+
+    /* ── Resize handle ── */
+    #resize-handle {
+      width: 5px;
+      background: var(--border);
+      cursor: col-resize;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      position: relative;
+      z-index: 10;
+    }
+    #resize-handle:hover, #resize-handle.dragging { background: var(--accent); }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      #main { grid-template-columns: 1fr; height: auto; overflow: visible; }
+      #resize-handle { display: none; }
+      .left-col { border-right: none; border-bottom: 1px solid var(--border); overflow-y: visible; }
+      .right-col { height: 70vh; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header id="header">
+  <h1><span class="logo">🥧</span> Pi Agent Dashboard</h1>
+  <div id="header-meta">
+    <span id="api-base-label">http://34.44.129.194</span>
+    <div id="pi-pill" class="pill checking"><span class="dot"></span> Checking...</div>
+  </div>
+</header>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Main layout -->
+<div id="main">
+
+  <!-- LEFT COLUMN -->
+  <div class="left-col" id="left-col" style="width:380px">
+
+    <!-- Auth Panel -->
+    <div class="card" id="auth-card">
+      <div class="card-title">
+        <span>Authentication</span>
+        <span id="auth-badge" class="pill checking">Not connected</span>
+      </div>
+      <div class="input-row">
+        <input type="password" id="api-key-input" placeholder="Enter your X-API-Key..." autocomplete="off" />
+        <button class="btn-primary" id="auth-btn" style="white-space:nowrap">Connect</button>
+      </div>
+      <div class="auth-status" id="auth-status">Enter your API key to access the cluster.</div>
+    </div>
+
+    <!-- Task Form -->
+    <div class="card" id="task-card">
+      <div class="card-title">Submit Task</div>
+      <textarea id="task-input" placeholder="Describe what you want the agent to do on the Pi…&#10;&#10;e.g. &quot;Check CPU temperature and memory usage&quot;" disabled></textarea>
+      <div class="warning-banner" id="pi-offline-warn">⚠ Pi is offline — tasks cannot be submitted right now.</div>
+      <div class="form-footer">
+        <span class="char-count" id="char-count">0 / 500</span>
+        <button class="btn-primary" id="submit-btn" disabled>Submit Task →</button>
+      </div>
+    </div>
+
+    <!-- Pi Status -->
+    <div class="card" id="pi-status-card">
+      <div class="card-title">
+        <span>Raspberry Pi 5 Status</span>
+        <button class="btn-icon" id="refresh-status-btn" title="Refresh">↻</button>
+      </div>
+      <div class="metric-row" id="pi-metrics">
+        <div class="empty-state" id="pi-metrics-empty">Authenticate to view Pi metrics.</div>
+      </div>
+    </div>
+
+    <!-- Task History -->
+    <div class="card" id="history-card">
+      <div class="card-title">
+        <span>Task History</span>
+        <span id="task-count" style="color:var(--muted);font-size:11px;font-weight:400"></span>
+      </div>
+      <div id="task-history-list">
+        <div class="empty-state">No tasks yet.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Resize handle -->
+  <div id="resize-handle"></div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right-col">
+
+    <!-- Live Feed -->
+    <div id="live-feed-header">
+      <span id="live-feed-title">Live Agent Feed</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="feed-task-id"></span>
+        <span id="feed-status-pill"></span>
+      </div>
+    </div>
+    <div id="live-feed-entries">
+      <div class="feed-empty">
+        <div class="icon">⚡</div>
+        <div>Submit a task to see the agent work in real time.</div>
+      </div>
+    </div>
+
+    <!-- Vertical Resize Handle -->
+    <div id="v-resize-handle" class="hidden"></div>
+
+    <!-- Result Panel -->
+    <div id="result-panel" class="hidden">
+      <div id="result-inner">
+        <div id="result-title">Task Result</div>
+        <div id="result-body"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://34.44.129.194';
+
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  apiKey: sessionStorage.getItem('apiKey') || '',
+  authenticated: false,
+  piOnline: false,
+  activeTaskId: null,
+  tasks: [],
+  streamController: null,
+};
+
+// ── API Client ─────────────────────────────────────────────────────────────
+const api = {
+  headers(extra = {}) {
+    return { 'X-API-Key': state.apiKey, 'Content-Type': 'application/json', ...extra };
+  },
+  async health() {
+    const r = await fetch(`${API_BASE}/health`);
+    return r.json();
+  },
+  async piStatus() {
+    const r = await fetch(`${API_BASE}/pi/status`, { headers: this.headers() });
+    if (r.status === 401) throw new Error('401');
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  },
+  async listTasks() {
+    const r = await fetch(`${API_BASE}/tasks`, { headers: this.headers() });
+    if (r.status === 401) throw new Error('401');
+    return r.json();
+  },
+  async createTask(description) {
+    const r = await fetch(`${API_BASE}/tasks`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ description }),
+    });
+    if (r.status === 401) throw new Error('401');
+    if (r.status === 503) { const d = await r.json(); throw new Error('503:' + (d.error || 'Pi offline')); }
+    if (!r.ok) throw new Error(r.status);
+    return r.json();
+  },
+  async getTask(id) {
+    const r = await fetch(`${API_BASE}/tasks/${id}`, { headers: this.headers() });
+    return r.json();
+  },
+  // SSE via fetch + ReadableStream (supports custom headers)
+  streamTask(taskId, onEvent, onError, onDone) {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/tasks/${taskId}/stream`, {
+          headers: this.headers(),
+          signal: controller.signal,
+        });
+        if (!r.ok) { onError(`HTTP ${r.status}`); return; }
+        const reader = r.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop();
+          for (const part of parts) {
+            const line = part.trim();
+            if (line.startsWith('data: ')) {
+              try {
+                const evt = JSON.parse(line.slice(6));
+                onEvent(evt);
+                if (evt.type === 'result') { onDone(); return; }
+              } catch {}
+            }
+          }
+        }
+        onDone();
+      } catch (e) {
+        if (e.name !== 'AbortError') onError(e.message);
+      }
+    })();
+    return controller;
+  },
+};
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `<span>${msg}</span><button class="toast-close" onclick="this.parentElement.remove()">✕</button>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+// ── Auth Panel ─────────────────────────────────────────────────────────────
+function setAuth(authenticated) {
+  state.authenticated = authenticated;
+  const badge = document.getElementById('auth-badge');
+  const status = document.getElementById('auth-status');
+  const btn = document.getElementById('auth-btn');
+  const taskInput = document.getElementById('task-input');
+
+  if (authenticated) {
+    badge.className = 'pill done';
+    badge.innerHTML = '<span class="dot"></span> Authenticated';
+    status.textContent = 'Connected to cluster.';
+    btn.textContent = 'Disconnect';
+    taskInput.disabled = false;
+    loadPiStatus();
+    loadTaskHistory();
+  } else {
+    badge.className = 'pill offline';
+    badge.innerHTML = '<span class="dot"></span> Not connected';
+    status.textContent = 'Enter your API key to access the cluster.';
+    btn.textContent = 'Connect';
+    taskInput.disabled = true;
+    document.getElementById('pi-metrics').innerHTML = '<div class="empty-state" id="pi-metrics-empty">Authenticate to view Pi metrics.</div>';
+  }
+  updateSubmitBtn();
+}
+
+document.getElementById('auth-btn').addEventListener('click', async () => {
+  if (state.authenticated) {
+    state.apiKey = '';
+    sessionStorage.removeItem('apiKey');
+    setAuth(false);
+    return;
+  }
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) { showToast('Enter an API key first.', 'warning'); return; }
+  state.apiKey = key;
+  const btn = document.getElementById('auth-btn');
+  btn.textContent = 'Connecting…';
+  btn.disabled = true;
+  try {
+    // Probe: POST with empty body — 400 means key valid, 401 means invalid
+    const r = await fetch(`${API_BASE}/tasks`, {
+      method: 'POST',
+      headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (r.status === 401) {
+      showToast('Invalid API key.', 'error');
+      state.apiKey = '';
+      btn.textContent = 'Connect';
+      btn.disabled = false;
+      return;
+    }
+    sessionStorage.setItem('apiKey', key);
+    setAuth(true);
+    showToast('Connected to cluster.', 'success');
+  } catch (e) {
+    showToast('Cannot reach API — check your connection.', 'error');
+  }
+  btn.disabled = false;
+});
+
+document.getElementById('api-key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('auth-btn').click();
+});
+
+// ── Pi Status Panel ────────────────────────────────────────────────────────
+async function loadPiStatus() {
+  if (!state.authenticated) return;
+  const container = document.getElementById('pi-metrics');
+  try {
+    const data = await api.piStatus();
+    renderPiMetrics(data);
+  } catch (e) {
+    if (e.message === '401') { handleUnauthorized(); return; }
+    container.innerHTML = `<div class="result-error">⚠ Could not reach Pi: ${e.message}</div>`;
+  }
+}
+
+function renderPiMetrics(data) {
+  const container = document.getElementById('pi-metrics');
+  const metrics = [
+    { label: 'CPU', value: data.cpu_percent, unit: '%' },
+    { label: 'Memory', value: data.memory.percent, unit: `% — ${data.memory.used_gb}GB / ${data.memory.total_gb}GB` },
+    { label: 'Disk', value: data.disk.percent, unit: `% — ${data.disk.used_gb}GB / ${data.disk.total_gb}GB` },
+  ];
+  container.innerHTML = metrics.map(m => {
+    const cls = m.value > 85 ? 'danger' : m.value > 65 ? 'warn' : '';
+    return `
+      <div class="metric">
+        <div class="metric-header">
+          <span>${m.label}</span>
+          <span>${m.value}${m.unit}</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill ${cls}" style="width:${m.value}%"></div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('refresh-status-btn').addEventListener('click', loadPiStatus);
+setInterval(() => { if (state.authenticated) loadPiStatus(); }, 30000);
+
+// ── Task Form ──────────────────────────────────────────────────────────────
+const taskInput = document.getElementById('task-input');
+const submitBtn = document.getElementById('submit-btn');
+const charCount = document.getElementById('char-count');
+
+taskInput.addEventListener('input', () => {
+  const len = taskInput.value.length;
+  charCount.textContent = `${len} / 500`;
+  if (len > 500) charCount.style.color = 'var(--red)';
+  else charCount.style.color = 'var(--muted)';
+  updateSubmitBtn();
+});
+
+function updateSubmitBtn() {
+  const hasText = taskInput.value.trim().length > 0 && taskInput.value.length <= 500;
+  submitBtn.disabled = !state.authenticated || !hasText;
+}
+
+submitBtn.addEventListener('click', async () => {
+  const desc = taskInput.value.trim();
+  if (!desc) return;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Submitting…';
+  try {
+    const { task_id } = await api.createTask(desc);
+    taskInput.value = '';
+    charCount.textContent = '0 / 500';
+    showToast(`Task queued: ${task_id.slice(0, 8)}…`, 'success');
+    const newTask = { id: task_id, description: desc, status: 'queued', created: Date.now() };
+    state.tasks.unshift(newTask);
+    renderTaskHistory();
+    openTaskStream(task_id);
+  } catch (e) {
+    if (e.message === '401') { handleUnauthorized(); return; }
+    if (e.message.startsWith('503')) {
+      document.getElementById('pi-offline-warn').classList.add('visible');
+      showToast('Pi is offline — cannot submit task.', 'error');
+    } else {
+      showToast(`Submit failed: ${e.message}`, 'error');
+    }
+  }
+  submitBtn.textContent = 'Submit Task →';
+  updateSubmitBtn();
+});
+
+// ── Health Polling ─────────────────────────────────────────────────────────
+async function checkHealth() {
+  const pill = document.getElementById('pi-pill');
+  try {
+    const data = await api.health();
+    const online = data.pi && data.pi.online;
+    state.piOnline = online;
+    if (online) {
+      pill.className = 'pill online';
+      pill.innerHTML = '<span class="dot"></span> Pi Online';
+      document.getElementById('pi-offline-warn').classList.remove('visible');
+    } else {
+      pill.className = 'pill offline';
+      pill.innerHTML = '<span class="dot"></span> Pi Offline';
+      document.getElementById('pi-offline-warn').classList.add('visible');
+    }
+  } catch {
+    pill.className = 'pill offline';
+    pill.innerHTML = '<span class="dot"></span> API Unreachable';
+  }
+  updateSubmitBtn();
+}
+
+checkHealth();
+setInterval(checkHealth, 30000);
+
+// ── Task History ───────────────────────────────────────────────────────────
+async function loadTaskHistory() {
+  if (!state.authenticated) return;
+  try {
+    const tasks = await api.listTasks();
+    state.tasks = tasks.map(t => ({ ...t, created: t.created || Date.now() })).reverse();
+    renderTaskHistory();
+  } catch (e) {
+    if (e.message === '401') handleUnauthorized();
+  }
+}
+
+function renderTaskHistory() {
+  const list = document.getElementById('task-history-list');
+  const count = document.getElementById('task-count');
+  count.textContent = state.tasks.length ? `${state.tasks.length} task${state.tasks.length > 1 ? 's' : ''}` : '';
+
+  if (!state.tasks.length) {
+    list.innerHTML = '<div class="empty-state">No tasks yet.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  state.tasks.forEach(t => {
+    const row = document.createElement('div');
+    row.className = `task-row${state.activeTaskId === t.id ? ' active' : ''}`;
+    row.dataset.id = t.id;
+    row.innerHTML = `
+      <div class="task-desc" title="${t.description}">${t.description}</div>
+      <span class="pill ${t.status}">${t.status}</span>
+    `;
+    row.addEventListener('click', () => {
+      if (t.status === 'done' || t.status === 'error') {
+        loadTaskResult(t.id);
+      } else {
+        openTaskStream(t.id);
+      }
+    });
+    list.appendChild(row);
+  });
+}
+
+async function loadTaskResult(taskId) {
+  state.activeTaskId = taskId;
+  renderTaskHistory();
+  clearFeed();
+  setFeedTaskId(taskId);
+
+  const task = await api.getTask(taskId);
+  if (task.logs) {
+    task.logs.forEach(entry => renderFeedEntry(entry));
+  }
+  if (task.result) {
+    setFeedStatus(task.status);
+    renderResult(task.result, task.status);
+  }
+}
+
+let historyPollInterval = null;
+function startHistoryPolling() {
+  if (historyPollInterval) return;
+  historyPollInterval = setInterval(async () => {
+    if (!state.authenticated) return;
+    const tasks = await api.listTasks().catch(() => null);
+    if (!tasks) return;
+    state.tasks = tasks.map(t => ({ ...t })).reverse();
+    renderTaskHistory();
+    const hasActive = state.tasks.some(t => t.status === 'queued' || t.status === 'running');
+    if (!hasActive) {
+      clearInterval(historyPollInterval);
+      historyPollInterval = null;
+    }
+  }, 10000);
+}
+
+// ── Live Feed ──────────────────────────────────────────────────────────────
+function clearFeed() {
+  document.getElementById('live-feed-entries').innerHTML = '';
+  document.getElementById('result-panel').classList.add('hidden');
+  document.getElementById('result-body').innerHTML = '';
+}
+
+function setFeedTaskId(id) {
+  document.getElementById('feed-task-id').textContent = id ? `#${id.slice(0, 8)}` : '';
+}
+
+function setFeedStatus(status) {
+  const pill = document.getElementById('feed-status-pill');
+  if (!status) { pill.innerHTML = ''; return; }
+  const dotClass = status === 'running' ? 'dot pulse' : 'dot';
+  pill.innerHTML = `<span class="pill ${status}"><span class="${dotClass}"></span> ${status}</span>`;
+}
+
+function renderFeedEntry(entry) {
+  const feed = document.getElementById('live-feed-entries');
+  const { type, data } = entry;
+  const el = document.createElement('div');
+
+  if (type === 'thought') {
+    el.className = 'entry thought';
+    el.innerHTML = `<span class="entry-icon">💭</span><div class="entry-body"><div class="entry-label">Thinking</div><div class="entry-text">${escHtml(data.text.trim())}</div></div>`;
+  } else if (type === 'command') {
+    el.className = 'entry command';
+    el.innerHTML = `<span class="entry-icon">$</span><div class="entry-body"><div class="entry-label">Command</div><div class="entry-text">${escHtml(data.command)}</div></div>`;
+  } else if (type === 'output') {
+    el.className = 'entry output';
+    el.innerHTML = `<span class="entry-icon">›</span><div class="entry-body"><div class="entry-label">Output</div><div class="entry-text">${escHtml(data.output)}</div></div>`;
+  } else if (type === 'summary') {
+    el.className = 'entry summary';
+    el.innerHTML = `<span class="entry-icon">✓</span><div class="entry-body"><div class="entry-label">Summary</div><div class="entry-text">${escHtml(data.text.trim())}</div></div>`;
+  } else if (type === 'system') {
+    el.className = 'entry system';
+    const ts = entry.ts ? new Date(entry.ts * 1000).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+    const phaseIcon = { gke: '🌐', anthropic: '🤖', tailscale: '🔗', pi: '🥧' }[data.phase] || '•';
+    el.innerHTML = `<div class="entry-body">
+      <span class="system-dot phase-${data.phase}"></span>
+      <span class="system-time">${ts}</span>
+      <span class="entry-icon" style="font-size:12px;width:auto">${phaseIcon}</span>
+      <span class="system-text">${escHtml(data.text)}</span>
+    </div>`;
+  }
+
+  if (el.className) {
+    feed.appendChild(el);
+    feed.scrollTop = feed.scrollHeight;
+  }
+}
+
+function renderStatusChange(status) {
+  const feed = document.getElementById('live-feed-entries');
+  const el = document.createElement('div');
+  el.className = 'entry status-change';
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+    <div style="flex:1;height:1px;background:var(--border)"></div>
+    <span class="pill ${status}" style="font-size:11px">${status}</span>
+    <div style="flex:1;height:1px;background:var(--border)"></div>
+  </div>`;
+  feed.appendChild(el);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function openTaskStream(taskId) {
+  // Cancel any existing stream
+  if (state.streamController) {
+    state.streamController.abort();
+    state.streamController = null;
+  }
+
+  state.activeTaskId = taskId;
+  clearFeed();
+  setFeedTaskId(taskId);
+  setFeedStatus('queued');
+  renderTaskHistory();
+  startHistoryPolling();
+
+  state.streamController = api.streamTask(
+    taskId,
+    (evt) => {
+      if (evt.type === 'log') {
+        renderFeedEntry(evt.entry);
+      } else if (evt.type === 'status') {
+        setFeedStatus(evt.status);
+        renderStatusChange(evt.status);
+        // Update task in local state
+        const t = state.tasks.find(t => t.id === taskId);
+        if (t) t.status = evt.status;
+        renderTaskHistory();
+      } else if (evt.type === 'result') {
+        renderResult(evt.result, 'done');
+      }
+    },
+    (err) => {
+      const feed = document.getElementById('live-feed-entries');
+      const el = document.createElement('div');
+      el.className = 'entry stream-error';
+      el.innerHTML = `<span class="entry-icon">✕</span><div class="entry-body"><div class="entry-label">Stream Error</div><div class="entry-text">${escHtml(err)}</div></div>`;
+      feed.appendChild(el);
+      showToast(`Stream disconnected: ${err}`, 'error');
+    },
+    () => {
+      loadTaskHistory();
+    }
+  );
+}
+
+function renderResult(result, status) {
+  const panel = document.getElementById('result-panel');
+  const handle = document.getElementById('v-resize-handle');
+  const body = document.getElementById('result-body');
+  panel.classList.remove('hidden');
+  handle.classList.remove('hidden');
+  if (!panel.style.height) panel.style.height = '220px';
+
+  if (status === 'error' || result.error) {
+    body.innerHTML = `<div class="result-error">✕ ${escHtml(result.error || 'Task failed')}</div>`;
+    return;
+  }
+
+  let html = '';
+  if (result.summary) {
+    html += `<p id="result-summary">${escHtml(result.summary)}</p>`;
+  }
+  if (result.commands_run && result.commands_run.length) {
+    html += `<table class="commands-table">
+      <thead><tr><th>Command</th><th>Output</th></tr></thead>
+      <tbody>
+        ${result.commands_run.map(c => `<tr>
+          <td>${escHtml(c.command)}</td>
+          <td>${escHtml((c.output || '').slice(0, 400))}${c.output && c.output.length > 400 ? '…' : ''}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+  }
+  body.innerHTML = html;
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function handleUnauthorized() {
+  state.apiKey = '';
+  sessionStorage.removeItem('apiKey');
+  setAuth(false);
+  showToast('Session expired — please reconnect.', 'warning');
+}
+
+// ── Resizable panels ──────────────────────────────────────────────────────
+(function () {
+  // Horizontal resize (left/right columns)
+  const hHandle = document.getElementById('resize-handle');
+  const leftCol = document.getElementById('left-col');
+  let hDragging = false, hStartX = 0, hStartW = 0;
+
+  hHandle.addEventListener('mousedown', e => {
+    hDragging = true; hStartX = e.clientX; hStartW = leftCol.offsetWidth;
+    hHandle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  // Vertical resize (live feed / result panel)
+  const vHandle = document.getElementById('v-resize-handle');
+  const resultPanel = document.getElementById('result-panel');
+  const rightCol = document.querySelector('.right-col');
+  let vDragging = false, vStartY = 0, vStartH = 0;
+
+  vHandle.addEventListener('mousedown', e => {
+    vDragging = true; vStartY = e.clientY; vStartH = resultPanel.offsetHeight;
+    vHandle.classList.add('dragging');
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (hDragging) {
+      const newW = Math.min(Math.max(hStartW + (e.clientX - hStartX), 260), window.innerWidth - 300);
+      leftCol.style.width = newW + 'px';
+    }
+    if (vDragging) {
+      const delta = vStartY - e.clientY;
+      const newH = Math.min(Math.max(vStartH + delta, 80), rightCol.offsetHeight - 120);
+      resultPanel.style.height = newH + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (hDragging) { hDragging = false; hHandle.classList.remove('dragging'); }
+    if (vDragging) { vDragging = false; vHandle.classList.remove('dragging'); }
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+})();
+
+// ── Init ───────────────────────────────────────────────────────────────────
+if (state.apiKey) {
+  document.getElementById('api-key-input').value = state.apiKey;
+  setAuth(true);
+  showToast('Restored session from storage.', 'info');
+}
+</script>
+</body>
+</html>
