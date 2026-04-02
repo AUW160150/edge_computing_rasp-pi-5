@@ -1,5 +1,8 @@
+import logging
 import anthropic
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_key: str, emit=None) -> dict:
@@ -106,9 +109,14 @@ def _execute_on_pi(command: str, pi_url: str, pi_token: str) -> str:
         )
         if resp.status_code == 200:
             data = resp.json()
-            return data.get("output", "").strip() or f"(exit code {data.get('exit_code', '?')})"
+            output = data.get("output", "").strip() or f"(exit code {data.get('exit_code', '?')})"
+            logger.info("Pi command exit_code=%s command=%r", data.get("exit_code"), command)
+            return output
+        logger.warning("Pi returned HTTP %s for command=%r", resp.status_code, command)
         return f"Error: HTTP {resp.status_code} — {resp.text}"
     except requests.Timeout:
+        logger.error("Pi command timed out: %r", command)
         return "Error: command timed out after 60s"
     except Exception as e:
+        logger.error("Pi connection error for command=%r: %s", command, e)
         return f"Connection error: {e}"

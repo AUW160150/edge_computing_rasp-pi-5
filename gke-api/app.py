@@ -2,11 +2,18 @@ import os
 import uuid
 import json
 import time
+import logging
 import threading
 from queue import Queue
 from functools import wraps
 from flask import Flask, request, jsonify, Response, stream_with_context
 from google.cloud import secretmanager
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -29,6 +36,7 @@ def get_secret(secret_id: str) -> str:
 def load_secrets():
     for key in ["gke-api-key", "pi-tunnel-url", "pi-execute-token", "anthropic-api-key"]:
         _secrets[key] = get_secret(key)
+    logger.info("Secrets loaded successfully")
 
 
 def require_auth(f):
@@ -36,6 +44,7 @@ def require_auth(f):
     def decorated(*args, **kwargs):
         key = request.headers.get("X-API-Key")
         if not key or key != _secrets.get("gke-api-key"):
+            logger.warning("Unauthorized request to %s from %s", request.path, request.remote_addr)
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated
@@ -47,12 +56,18 @@ def worker():
     while True:
         task_id = task_queue.get()
         tasks[task_id]["status"] = "running"
+        description = tasks[task_id]["description"]
+        logger.info("Task %s started: %s", task_id, description)
         try:
             def emit(event_type, data):
                 tasks[task_id]["logs"].append({"type": event_type, "data": data})
+                if event_type == "command":
+                    logger.info("Task %s agent running command: %s", task_id, data.get("command"))
+                elif event_type == "output" and data.get("output", "").startswith("Connection error"):
+                    logger.error("Task %s Pi connection error: %s", task_id, data.get("output"))
 
             result = run_agent(
-                task_description=tasks[task_id]["description"],
+                task_description=description,
                 pi_url=_secrets["pi-tunnel-url"],
                 pi_token=_secrets["pi-execute-token"],
                 anthropic_api_key=_secrets["anthropic-api-key"],
@@ -60,9 +75,11 @@ def worker():
             )
             tasks[task_id]["status"] = "done"
             tasks[task_id]["result"] = result
+            logger.info("Task %s completed successfully", task_id)
         except Exception as e:
             tasks[task_id]["status"] = "error"
             tasks[task_id]["result"] = {"error": str(e)}
+            logger.error("Task %s failed: %s", task_id, e)
         finally:
             task_queue.task_done()
 
@@ -88,6 +105,7 @@ def create_task():
         "logs": [],
     }
     task_queue.put(task_id)
+    logger.info("Task %s queued: %s", task_id, data["description"])
     return jsonify({"task_id": task_id, "status": "queued"}), 202
 
 
@@ -120,6 +138,7 @@ def pi_status():
         )
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
+        logger.error("Pi unreachable at %s: %s", _secrets.get("pi-tunnel-url"), e)
         return jsonify({"error": f"Could not reach Pi: {e}"}), 503
 
 
@@ -174,4 +193,5 @@ def stream_task(task_id):
 if __name__ == "__main__":
     load_secrets()
     threading.Thread(target=worker, daemon=True).start()
+    logger.info("pi-agent-api started")
     app.run(host="0.0.0.0", port=8080)
