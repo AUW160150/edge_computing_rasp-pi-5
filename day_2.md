@@ -202,6 +202,51 @@ management, `terraform import` would be needed for each resource.
 
 ---
 
+## Phase 7 — Tailscale (Replace Cloudflare)
+
+### Problem with Cloudflare
+- Tunnel URL changes on every Pi restart
+- Mitigated by saving URL to Secret Manager but fragile
+- HTTP relay through Cloudflare servers — not end-to-end encrypted
+- HTTP only, no SSH support
+
+### Tailscale Solution
+- Pi joins Tailscale network → gets stable IP `100.103.122.25` (never changes)
+- GKE pod runs Tailscale sidecar → joins same network
+- Agent routes Pi traffic through Tailscale SOCKS5 proxy (`localhost:1055`)
+- WireGuard encrypted peer-to-peer — no relay
+
+### Steps
+1. Installed Tailscale on Pi: `curl -fsSL https://tailscale.com/install.sh | sh`
+2. Authenticated Pi to personal Tailscale account
+3. Pi Tailscale IP: `100.103.122.25` (stable)
+4. Created Tailscale auth key (reusable, ephemeral) → stored in Secret Manager
+5. Created Kubernetes Secret for Tailscale auth key
+6. Added Tailscale sidecar container to GKE deployment
+7. Updated `pi-tunnel-url` secret to `http://100.103.122.25:8080`
+8. Updated `agent.py` to pass SOCKS5 proxy only for Pi requests
+
+### Errors & Fixes
+- **Issue:** Pi authenticated to wrong Tailscale account (work email)
+  - **Fix:** `sudo tailscale logout` then re-auth with personal account
+- **Issue:** Tailscale sidecar failed — missing RBAC for K8s secret
+  - **Fix:** Added `TS_KUBE_SECRET=""` to disable K8s state storage
+- **Issue:** `ALL_PROXY` routed Anthropic API calls through SOCKS5 — httpx missing `socksio`
+  - **Fix:** Removed `ALL_PROXY`, passed proxy explicitly only in `_execute_on_pi()`
+- **Issue:** Old `ALL_PROXY` still set on running pod after deployment update
+  - **Fix:** `kubectl set env deployment/pi-api ALL_PROXY="" NO_PROXY=""`
+
+### Verification
+```bash
+# E2E through Tailscale
+curl -X POST http://34.44.129.194/tasks \
+  -H "X-API-Key: <key>" \
+  -d '{"description": "check disk space on the device"}'
+# Agent ran df -h + lsblk, returned full disk summary ✅
+```
+
+---
+
 ## Architecture (End of Day 2)
 
 ```
@@ -211,17 +256,20 @@ Developer
 GCP Load Balancer (34.44.129.194:80)
     │
     ▼
-Flask API — GKE Pod (v4)
+Flask API — GKE Pod (v5)
     ├── Auth middleware (Secret Manager)
     ├── Task queue (in-memory)
     └── Background worker
-            │  Anthropic API
+            │  Anthropic API (direct)
             ▼
         Claude agent (run_command tool)
-            │  POST /execute + X-Pi-Token
+            │  SOCKS5 proxy → Tailscale sidecar
             ▼
-        Cloudflare Tunnel URL (Secret Manager)
+        WireGuard (peer-to-peer encrypted)
             │
+            ▼
+        Pi Tailscale IP (100.103.122.25:8080)
+            │  X-Pi-Token
             ▼
         Pi Flask API (Docker, port 8080)
             │
@@ -234,8 +282,8 @@ Flask API — GKE Pod (v4)
 
 ## Remaining Work
 
-- [ ] Switch Cloudflare tunnel to Tailscale (stable IP, better security)
 - [ ] HTTPS on GKE LoadBalancer
 - [ ] `terraform import` existing resources into state
+- [ ] Update Terraform to include Tailscale secret
 - [ ] Pi setup script end-to-end test
 - [ ] Day 3 demo preparation
