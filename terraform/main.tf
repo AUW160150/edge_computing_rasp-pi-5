@@ -201,7 +201,10 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   attribute_mapping = {
     "google.subject"       = "assertion.sub"
     "attribute.repository" = "assertion.repository"
+    "attribute.actor"      = "assertion.actor"
   }
+
+  attribute_condition = "assertion.repository=='Asari-AI/rodela-trial-project'"
 }
 
 # Allow GitHub Actions (from this repo) to impersonate the SA
