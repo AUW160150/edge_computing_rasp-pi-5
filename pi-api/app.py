@@ -37,14 +37,37 @@ def execute():
 
     command = data["command"]
 
+    # Run command in an isolated throwaway container:
+    # --rm            destroyed immediately after exit
+    # --network=none  no internet access
+    # --memory=512m   killed if it exceeds 512MB RAM
+    # --cpus=0.5      capped at half a CPU core
+    # --user=nobody   runs as unprivileged user
+    # --stop-timeout  gives Docker 55s to stop before force kill
+    sandbox_cmd = [
+        "docker", "run", "--rm",
+        "--network=none",
+        "--memory=512m",
+        "--cpus=0.5",
+        "--user=nobody",
+        "--stop-timeout=55",
+        "python:3.11-slim",
+        "sh", "-c", command,
+    ]
+
     try:
         result = subprocess.run(
-            command,
-            shell=True,
+            sandbox_cmd,
             capture_output=True,
             text=True,
             timeout=60,
         )
+
+        if result.returncode == 137:
+            return jsonify({"error": "Command killed — exceeded 512MB memory limit"}), 400
+        if result.returncode == 124:
+            return jsonify({"error": "Command timed out after 60s"}), 408
+
         return jsonify({
             "command": command,
             "output": result.stdout + result.stderr,
