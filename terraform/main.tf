@@ -103,24 +103,32 @@ resource "google_project_iam_member" "gke_secret_accessor" {
 
 resource "google_secret_manager_secret" "gke_api_key" {
   secret_id = "gke-api-key"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
   depends_on = [google_project_service.secretmanager]
 }
 
 resource "google_secret_manager_secret" "pi_tunnel_url" {
   secret_id = "pi-tunnel-url"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
   depends_on = [google_project_service.secretmanager]
 }
 
 resource "google_secret_manager_secret" "pi_execute_token" {
   secret_id = "pi-execute-token"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
   depends_on = [google_project_service.secretmanager]
 }
 
 resource "google_secret_manager_secret" "anthropic_api_key" {
   secret_id = "anthropic-api-key"
-  replication { auto {} }
+  replication {
+    auto {}
+  }
   depends_on = [google_project_service.secretmanager]
 }
