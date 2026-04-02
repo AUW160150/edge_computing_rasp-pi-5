@@ -49,6 +49,8 @@ spec:
               value: "--accept-dns=false"
             - name: TS_SOCKS5_SERVER
               value: "localhost:1055"
+            - name: TS_KUBE_SECRET
+              value: ""
           volumeMounts:
             - name: tailscale-state
               mountPath: /var/lib/tailscale
