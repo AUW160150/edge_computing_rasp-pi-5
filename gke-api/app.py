@@ -1,9 +1,11 @@
 import os
 import uuid
+import json
+import time
 import threading
 from queue import Queue
 from functools import wraps
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from google.cloud import secretmanager
 
 app = Flask(__name__)
@@ -112,6 +114,46 @@ def pi_status():
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
         return jsonify({"error": f"Could not reach Pi: {e}"}), 503
+
+
+@app.route("/tasks/<task_id>/stream", methods=["GET"])
+@require_auth
+def stream_task(task_id):
+    """
+    SSE endpoint — developer connects once and gets pushed updates
+    as the task moves through queued → running → done/error.
+    """
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+
+    def event_stream():
+        last_status = None
+        while True:
+            task = tasks.get(task_id)
+            if not task:
+                yield f"data: {json.dumps({'error': 'task not found'})}\n\n"
+                break
+
+            current_status = task["status"]
+
+            if current_status != last_status:
+                yield f"data: {json.dumps(task)}\n\n"
+                last_status = current_status
+
+            if current_status in ("done", "error"):
+                break
+
+            time.sleep(1)
+
+    return Response(
+        stream_with_context(event_stream()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 if __name__ == "__main__":
