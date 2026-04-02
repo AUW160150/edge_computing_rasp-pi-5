@@ -105,11 +105,13 @@ def list_tasks():
 @require_auth
 def pi_status():
     import requests
+    proxies = {"http": "socks5h://localhost:1055", "https": "socks5h://localhost:1055"}
     try:
         resp = requests.get(
             f"{_secrets['pi-tunnel-url']}/status",
             headers={"X-Pi-Token": _secrets["pi-execute-token"]},
             timeout=10,
+            proxies=proxies,
         )
         return jsonify(resp.json()), resp.status_code
     except Exception as e:
