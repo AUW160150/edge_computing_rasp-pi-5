@@ -15,5 +15,5 @@ output "registry_url" {
 
 output "gke_node_sa" {
   description = "Service account email used by GKE nodes"
-  value       = google_service_account.gke_node.email
+  value       = "${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }

@@ -74,29 +74,26 @@ resource "google_container_node_pool" "pi_agent_nodes" {
     machine_type = "e2-small"
     oauth_scopes = ["https://www.googleapis.com/auth/cloud-platform"]
 
-    service_account = google_service_account.gke_node.email
+    # Uses the default compute service account (created automatically by GCP)
+    service_account = "${data.google_project.project.number}-compute@developer.gserviceaccount.com"
   }
 }
 
-# ── Service Account for GKE nodes ─────────────────────────────────────────────
-
-resource "google_service_account" "gke_node" {
-  account_id   = "pi-agent-gke-node"
-  display_name = "Pi Agent GKE Node SA"
-}
+# Reference to the current GCP project (used for default compute SA email)
+data "google_project" "project" {}
 
 # Allow GKE nodes to pull from Artifact Registry
 resource "google_project_iam_member" "gke_artifact_reader" {
   project = var.project_id
   role    = "roles/artifactregistry.reader"
-  member  = "serviceAccount:${google_service_account.gke_node.email}"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }
 
 # Allow GKE nodes to read secrets from Secret Manager
 resource "google_project_iam_member" "gke_secret_accessor" {
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
-  member  = "serviceAccount:${google_service_account.gke_node.email}"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
 }
 
 # ── Secret Manager secrets (values set manually or via CI) ────────────────────
