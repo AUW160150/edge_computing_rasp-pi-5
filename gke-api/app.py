@@ -48,11 +48,15 @@ def worker():
         task_id = task_queue.get()
         tasks[task_id]["status"] = "running"
         try:
+            def emit(event_type, data):
+                tasks[task_id]["logs"].append({"type": event_type, "data": data})
+
             result = run_agent(
                 task_description=tasks[task_id]["description"],
                 pi_url=_secrets["pi-tunnel-url"],
                 pi_token=_secrets["pi-execute-token"],
                 anthropic_api_key=_secrets["anthropic-api-key"],
+                emit=emit,
             )
             tasks[task_id]["status"] = "done"
             tasks[task_id]["result"] = result
@@ -81,6 +85,7 @@ def create_task():
         "description": data["description"],
         "status": "queued",
         "result": None,
+        "logs": [],
     }
     task_queue.put(task_id)
     return jsonify({"task_id": task_id, "status": "queued"}), 202
@@ -131,22 +136,30 @@ def stream_task(task_id):
 
     def event_stream():
         last_status = None
+        last_log_idx = 0
         while True:
             task = tasks.get(task_id)
             if not task:
                 yield f"data: {json.dumps({'error': 'task not found'})}\n\n"
                 break
 
-            current_status = task["status"]
+            # Emit any new log entries since last poll
+            logs = task.get("logs", [])
+            for entry in logs[last_log_idx:]:
+                yield f"data: {json.dumps({'type': 'log', 'entry': entry})}\n\n"
+            last_log_idx = len(logs)
 
+            # Emit status changes
+            current_status = task["status"]
             if current_status != last_status:
-                yield f"data: {json.dumps(task)}\n\n"
+                yield f"data: {json.dumps({'type': 'status', 'id': task['id'], 'status': current_status})}\n\n"
                 last_status = current_status
 
             if current_status in ("done", "error"):
+                yield f"data: {json.dumps({'type': 'result', 'result': task['result']})}\n\n"
                 break
 
-            time.sleep(1)
+            time.sleep(0.5)
 
     return Response(
         stream_with_context(event_stream()),

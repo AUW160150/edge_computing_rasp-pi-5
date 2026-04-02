@@ -2,7 +2,7 @@ import anthropic
 import requests
 
 
-def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_key: str) -> dict:
+def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_key: str, emit=None) -> dict:
     """
     Uses Claude to interpret a task description, then executes shell commands
     on the Raspberry Pi via its /execute HTTP endpoint.
@@ -57,16 +57,27 @@ def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_k
                 (block.text for block in response.content if hasattr(block, "text")),
                 "Task completed.",
             )
+            if emit:
+                emit("summary", {"text": summary})
             return {"summary": summary, "commands_run": commands_run}
 
         if response.stop_reason == "tool_use":
+            # Emit any text Claude produced before calling a tool (its reasoning)
+            for block in response.content:
+                if hasattr(block, "text") and block.text and emit:
+                    emit("thought", {"text": block.text})
+
             messages.append({"role": "assistant", "content": response.content})
             tool_results = []
 
             for block in response.content:
                 if block.type == "tool_use" and block.name == "run_command":
                     command = block.input["command"]
+                    if emit:
+                        emit("command", {"command": command})
                     output = _execute_on_pi(command, pi_url, pi_token)
+                    if emit:
+                        emit("output", {"command": command, "output": output})
                     commands_run.append({"command": command, "output": output})
                     tool_results.append(
                         {
