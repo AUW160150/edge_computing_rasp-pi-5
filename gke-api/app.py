@@ -7,6 +7,7 @@ import threading
 from queue import Queue
 from functools import wraps
 from flask import Flask, request, jsonify, Response, stream_with_context
+from flask_cors import CORS
 from google.cloud import secretmanager
 
 logging.basicConfig(
@@ -16,6 +17,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*", "allow_headers": ["X-API-Key", "Content-Type"]}})
 
 # In-memory task store and queue (single pod — fine for this project scale)
 tasks = {}
