@@ -83,12 +83,15 @@ def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_k
 
 def _execute_on_pi(command: str, pi_url: str, pi_token: str) -> str:
     """POST a command to the Pi's /execute endpoint and return the output string."""
+    # Route Pi traffic through Tailscale SOCKS5 proxy
+    proxies = {"http": "socks5h://localhost:1055", "https": "socks5h://localhost:1055"}
     try:
         resp = requests.post(
             f"{pi_url}/execute",
             json={"command": command},
             headers={"X-Pi-Token": pi_token},
             timeout=60,
+            proxies=proxies,
         )
         if resp.status_code == 200:
             data = resp.json()

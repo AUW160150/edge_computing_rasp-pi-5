@@ -21,12 +21,6 @@ spec:
           env:
             - name: GCP_PROJECT_ID
               value: rodela-trial-project
-            # Route traffic to Pi through Tailscale SOCKS5 proxy (localhost:1055)
-            - name: ALL_PROXY
-              value: socks5h://localhost:1055
-            # Don't proxy GCP metadata or internal traffic
-            - name: NO_PROXY
-              value: "169.254.169.254,metadata.google.internal,127.0.0.1,localhost"
 
         # Tailscale sidecar: joins Tailscale network and exposes SOCKS5 proxy on :1055
         - name: tailscale
