@@ -36,6 +36,11 @@ resource "google_project_service" "secretmanager" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "cloudresourcemanager" {
+  service            = "cloudresourcemanager.googleapis.com"
+  disable_on_destroy = false
+}
+
 # ── Artifact Registry ─────────────────────────────────────────────────────────
 
 resource "google_artifact_registry_repository" "pi_agent" {
@@ -124,6 +129,15 @@ resource "google_secret_manager_secret" "pi_execute_token" {
 
 resource "google_secret_manager_secret" "anthropic_api_key" {
   secret_id = "anthropic-api-key"
+  replication {
+    auto {}
+  }
+  depends_on = [google_project_service.secretmanager]
+}
+
+# Tailscale auth key for GKE sidecar to join the Tailscale network
+resource "google_secret_manager_secret" "tailscale_auth_key" {
+  secret_id = "tailscale-auth-key"
   replication {
     auto {}
   }

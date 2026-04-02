@@ -25,5 +25,5 @@ variable "cluster_name" {
 variable "registry_name" {
   description = "Artifact Registry repository name"
   type        = string
-  default     = "pi-agent-repo"
+  default     = "pi-api-repo"
 }
