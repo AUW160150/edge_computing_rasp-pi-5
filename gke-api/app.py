@@ -115,10 +115,17 @@ def worker():
                 pi_token=_secrets["pi-execute-token"],
                 anthropic_api_key=_secrets["anthropic-api-key"],
                 emit=emit,
+                is_cancelled=lambda: tasks[task_id].get("cancelled", False),
             )
-            tasks[task_id]["status"] = "done"
-            tasks[task_id]["result"] = result
-            emit("system", {"text": "Task completed successfully ✓", "phase": "gke"})
+            if tasks[task_id].get("cancelled"):
+                tasks[task_id]["status"] = "cancelled"
+                tasks[task_id]["result"] = {"summary": "Task was cancelled."}
+                emit("system", {"text": "Task cancelled by user", "phase": "gke"})
+                logger.info("Task %s cancelled", task_id)
+            else:
+                tasks[task_id]["status"] = "done"
+                tasks[task_id]["result"] = result
+                emit("system", {"text": "Task completed successfully ✓", "phase": "gke"})
             logger.info("Task %s completed successfully", task_id)
         except Exception as e:
             tasks[task_id]["status"] = "error"
@@ -164,6 +171,7 @@ def create_task():
         "status": "queued",
         "result": None,
         "logs": [],
+        "cancelled": False,
     }
     tasks[task_id]["logs"].append({
         "type": "system",
@@ -182,6 +190,19 @@ def get_task(task_id):
     if not task:
         return jsonify({"error": "Task not found"}), 404
     return jsonify(task)
+
+
+@app.route("/tasks/<task_id>", methods=["DELETE"])
+@require_auth
+def cancel_task(task_id):
+    task = tasks.get(task_id)
+    if not task:
+        return jsonify({"error": "Task not found"}), 404
+    if task["status"] in ("done", "error", "cancelled"):
+        return jsonify({"error": f"Task already {task['status']}"}), 400
+    task["cancelled"] = True
+    logger.info("Task %s cancel requested", task_id)
+    return jsonify({"task_id": task_id, "status": "cancelling"})
 
 
 @app.route("/tasks", methods=["GET"])
@@ -240,7 +261,7 @@ def stream_task(task_id):
                 yield f"data: {json.dumps({'type': 'status', 'id': task['id'], 'status': current_status})}\n\n"
                 last_status = current_status
 
-            if current_status in ("done", "error"):
+            if current_status in ("done", "error", "cancelled"):
                 yield f"data: {json.dumps({'type': 'result', 'result': task['result']})}\n\n"
                 break
 

@@ -5,7 +5,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_key: str, emit=None) -> dict:
+def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_key: str, emit=None, is_cancelled=None) -> dict:
     """
     Uses Claude to interpret a task description, then executes shell commands
     on the Raspberry Pi via its /execute HTTP endpoint.
@@ -48,6 +48,9 @@ def run_agent(task_description: str, pi_url: str, pi_token: str, anthropic_api_k
     commands_run = []
 
     for _ in range(10):  # max 10 tool-use rounds
+        if is_cancelled and is_cancelled():
+            return {"summary": "Task was cancelled.", "commands_run": commands_run}
+
         if emit:
             emit("system", {"text": "Calling Anthropic API (Claude Opus 4)…", "phase": "anthropic"})
 
