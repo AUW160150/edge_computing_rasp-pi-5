@@ -1,0 +1,81 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-gke:
+    name: Build and deploy GKE API
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # required for Workload Identity Federation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/1004672478893/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: github-actions-sa@rodela-trial-project.iam.gserviceaccount.com
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Build and push GKE image
+        run: |
+          docker build --platform linux/amd64 \
+            -t us-central1-docker.pkg.dev/rodela-trial-project/pi-api-repo/pi-agent-api:${{ github.sha }} \
+            ./gke-api
+          docker push us-central1-docker.pkg.dev/rodela-trial-project/pi-api-repo/pi-agent-api:${{ github.sha }}
+
+      - name: Get GKE credentials
+        run: gcloud container clusters get-credentials pi-agent-cluster --zone=us-central1-a --project=rodela-trial-project
+
+      - name: Deploy to GKE
+        run: |
+          kubectl set image deployment/pi-api pi-api=us-central1-docker.pkg.dev/rodela-trial-project/pi-api-repo/pi-agent-api:${{ github.sha }}
+          kubectl rollout status deployment/pi-api
+
+  deploy-pi:
+    name: Build and deploy Pi API
+    runs-on: ubuntu-latest
+    if: contains(github.event.commits[0].modified, 'pi-api/') || contains(github.event.commits[0].added, 'pi-api/')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PI_SSH_KEY }}" > ~/.ssh/pi_key
+          chmod 600 ~/.ssh/pi_key
+          ssh-keyscan -H 100.103.122.25 >> ~/.ssh/known_hosts
+
+      - name: Copy pi-api to Pi
+        run: scp -i ~/.ssh/pi_key -r pi-api/ rodela_asari@100.103.122.25:~/pi-api-deploy/
+
+      - name: Rebuild and restart Pi API
+        run: |
+          ssh -i ~/.ssh/pi_key rodela_asari@100.103.122.25 << 'EOF'
+            docker stop pi-api || true
+            docker rm pi-api || true
+            docker build --no-cache -t pi-api ~/pi-api-deploy
+            docker run -d \
+              --name pi-api \
+              --restart always \
+              -p 8080:8080 \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -e PI_EXECUTE_TOKEN="${{ secrets.PI_EXECUTE_TOKEN }}" \
+              pi-api
+          EOF
