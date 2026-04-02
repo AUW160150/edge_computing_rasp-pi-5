@@ -99,6 +99,21 @@ def list_tasks():
     return jsonify(list(tasks.values()))
 
 
+@app.route("/pi/status", methods=["GET"])
+@require_auth
+def pi_status():
+    import requests
+    try:
+        resp = requests.get(
+            f"{_secrets['pi-tunnel-url']}/status",
+            headers={"X-Pi-Token": _secrets["pi-execute-token"]},
+            timeout=10,
+        )
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({"error": f"Could not reach Pi: {e}"}), 503
+
+
 if __name__ == "__main__":
     load_secrets()
     threading.Thread(target=worker, daemon=True).start()
