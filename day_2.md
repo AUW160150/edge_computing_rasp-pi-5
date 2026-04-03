@@ -256,9 +256,9 @@ Developer
 GCP Load Balancer (34.44.129.194:80)
     │
     ▼
-Flask API — GKE Pod (v5)
+Flask API — GKE Pod
     ├── Auth middleware (Secret Manager)
-    ├── Task queue (in-memory)
+    ├── Task queue (in-memory, serialized — one agent at a time)
     └── Background worker
             │  Anthropic API (direct)
             ▼
@@ -280,10 +280,222 @@ Flask API — GKE Pod (v5)
 
 ---
 
-## Remaining Work
+## Phase 8 — Terraform: Full Import & Workload Identity
 
-- [ ] HTTPS on GKE LoadBalancer
-- [ ] `terraform import` existing resources into state
-- [ ] Update Terraform to include Tailscale secret
-- [ ] Pi setup script end-to-end test
-- [ ] Day 3 demo preparation
+### Problem
+All resources were created manually before Terraform was introduced. Running `terraform plan`
+showed all resources as `+ create` — Terraform had no state.
+
+### Solution
+Imported all existing resources into Terraform state via `terraform import`:
+
+```bash
+terraform import google_container_cluster.pi_agent ...
+terraform import google_container_node_pool.pi_agent_nodes ...
+terraform import google_artifact_registry_repository.pi_agent ...
+# ... all secrets, IAM bindings, APIs
+```
+
+Also added Workload Identity Federation resources to `main.tf` (previously manual):
+
+| Resource | Purpose |
+|----------|---------|
+| `google_service_account.github_actions` | SA for GitHub Actions CI |
+| `google_iam_workload_identity_pool.github` | WI pool — trusts GitHub OIDC |
+| `google_iam_workload_identity_pool_provider.github` | WI provider with `attribute_condition` restricting to `Asari-AI/rodela-trial-project` |
+| `google_service_account_iam_member.github_actions_wi` | Binds repo to SA |
+| `google_project_iam_member.github_actions_*` | GKE deploy + AR push permissions |
+
+### Result
+```bash
+terraform plan  # No changes. Your infrastructure matches the configuration. ✅
+```
+
+### Key Fixes
+- **Issue:** Node pool `lifecycle { ignore_changes = all }` needed — service_account field mismatch between `"default"` and full SA email caused destroy plan
+- **Issue:** WI provider `attribute_condition` must be preserved — removing it would allow any GitHub repo to authenticate
+- **Issue:** WI binding repo was `Asari-AI/rodela-trial-project` not `rodela/rodela-trial-project`
+
+---
+
+## Phase 9 — Observability
+
+### Phase 9.1 — Structured Logging
+
+Added Python `logging` to `app.py` and `agent.py`. GKE ships stdout to Cloud Logging automatically.
+
+Key log events:
+- Task queued, started, completed, failed
+- Each agent command run on Pi
+- Unauthorized access attempts (IP logged)
+- Pi connectivity errors
+
+```bash
+kubectl logs deployment/pi-api -c pi-api -f
+# 2026-04-02 21:10:56 INFO Task fa20b26a queued: check CPU temperature
+# 2026-04-02 21:10:56 INFO Task fa20b26a started
+# 2026-04-02 21:10:59 INFO Task fa20b26a agent running command: vcgencmd measure_temp
+# 2026-04-02 21:11:07 INFO Task fa20b26a completed successfully
+```
+
+### Phase 9.2 — Real-time SSE Agent Progress
+
+Updated SSE stream to emit granular agent events as they happen:
+
+| Event type | When emitted | Content |
+|-----------|-------------|---------|
+| `system` | Infrastructure hops | GKE received, worker started, Anthropic called, Tailscale routing, Pi responded |
+| `thought` | Claude reasons | Agent's planning text |
+| `command` | Before Pi call | Command string |
+| `output` | After Pi responds | stdout/stderr |
+| `summary` | Task complete | Claude's final summary |
+| `status` | State change | queued/running/done/error/cancelled |
+| `result` | Terminal | Full result object |
+
+Developer connects once to `/tasks/{id}/stream` and receives the full infrastructure trail in real time.
+
+### Phase 9.3 — Pi Liveness Monitor
+
+Added background thread in GKE pod that pings Pi every 30 seconds:
+
+- `pi_health` dict tracks `{online, last_checked, error}`
+- `GET /health` exposes API + Pi status (no auth required)
+- `POST /tasks` rejects immediately with 503 if Pi is known offline — no point queuing
+
+```bash
+curl http://34.44.129.194/health
+# {"api": "ok", "pi": {"online": true, "last_checked": 1775167683.4, "error": null}}
+```
+
+---
+
+## Phase 10 — Security Hardening
+
+### Tailscale ACLs
+
+Configured access control policy in Tailscale admin console:
+
+```json
+{
+  "tagOwners": {
+    "tag:gke": ["autogroup:admin"],
+    "tag:pi": ["autogroup:admin"]
+  },
+  "grants": [
+    {"src": ["tag:gke"], "dst": ["tag:pi"], "ip": ["tcp:8080"]},
+    {"src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"]}
+  ]
+}
+```
+
+- Pi tagged as `tag:pi`
+- GKE pod uses a tagged auth key → auto-joins as `tag:gke`
+- Only `tag:gke` can reach `tag:pi` on port 8080 — all other tailnet devices blocked
+
+### Additional Security Items
+- `service.yaml` added to repo (was missing — LoadBalancer existed only in GCP)
+- `pi-setup/setup.sh` updated to use Tailscale instead of Cloudflare
+
+---
+
+## Phase 11 — Task Cancellation
+
+Added `DELETE /tasks/{id}` endpoint:
+
+- Sets `task["cancelled"] = True`
+- Agent checks flag between rounds — stops cleanly after current Pi command completes
+- Status transitions to `"cancelled"`, result set to `{"summary": "Task was cancelled."}`
+- SSE stream emits the cancellation event
+
+```bash
+curl -X DELETE http://34.44.129.194/tasks/<task_id> -H "X-API-Key: <key>"
+# {"task_id": "...", "status": "cancelling"}
+```
+
+---
+
+## Phase 12 — Developer Frontend
+
+Built a single-page dashboard at `dashboard/index.html` (served via `python3 -m http.server 8000`):
+
+| Panel | Description |
+|-------|-------------|
+| Auth | API key input, connection validation, session storage |
+| Task Form | Natural language task submission, Pi-offline guard |
+| Live Feed | Real-time SSE stream — system trail, agent thoughts, commands, output |
+| Result Panel | Final summary + commands table, vertically resizable |
+| Pi Status | CPU/memory/disk progress bars, auto-refreshed |
+| Task History | All tasks with status, click to reload stream |
+| Header | Pi online/offline pill, health polling |
+
+Key implementation detail: `EventSource` doesn't support custom headers — used `fetch()` + `ReadableStream` to manually parse SSE frames with `X-API-Key` header.
+
+CORS enabled on GKE API (`flask-cors`) to allow browser requests from localhost.
+
+---
+
+## Phase 13 — CI/CD Fix
+
+Fixed hardcoded image tag `v4` in `deployment.yaml`:
+- CI now pushes both `:<git-sha>` (traceability) and `:latest` (fresh provisioning)
+- `deployment.yaml` updated to use `:latest`
+
+---
+
+## Architecture (End of Day 2 — Updated)
+
+```
+Developer (browser / curl)
+    │  POST /tasks + X-API-Key
+    ▼
+GCP Load Balancer (34.44.129.194:80)
+    │
+    ▼
+Flask API — GKE Pod
+    ├── Auth middleware (Secret Manager)
+    ├── Pi liveness monitor (background thread, 30s interval)
+    ├── Task queue (serialized — prevents Pi resource conflicts)
+    └── Background worker
+            │  emit() → SSE stream (system trail + agent events)
+            │  Anthropic API (direct, no proxy)
+            ▼
+        Claude agent — run_command tool (max 10 rounds, cancellable)
+            │  SOCKS5 proxy (localhost:1055) → Tailscale sidecar
+            ▼
+        WireGuard peer-to-peer (tag:gke → tag:pi ACL enforced)
+            │
+            ▼
+        Pi Flask API (100.103.122.25:8080, X-Pi-Token auth)
+            │
+            ▼
+        Docker sandbox (python:3.11-slim)
+            --network=none --cpus=0.5 --memory=512m --user=nobody --rm
+```
+
+---
+
+## Known Limitations
+
+| Limitation | Impact | Production Fix |
+|-----------|--------|----------------|
+| Memory limits not enforced on Pi | Sandbox can use unlimited RAM | Enable cgroup v1 or upgrade kernel |
+| Tasks in-memory only | Lost on pod restart | Redis / Cloud Firestore |
+| HTTP not HTTPS | API key in plaintext | GCP managed cert + Ingress |
+| Single worker thread | Tasks queue serially | Correct for single Pi — add mutex if scaling |
+| K8s `tailscale-auth-key` secret manual | Not in Terraform | Add Kubernetes Terraform provider |
+
+---
+
+## Completed ✅
+
+- [x] Terraform fully imported — `terraform plan` clean
+- [x] Workload Identity in Terraform
+- [x] Tailscale ACLs configured
+- [x] Structured logging
+- [x] Real-time SSE agent trail
+- [x] Pi liveness monitor + /health
+- [x] Task cancellation endpoint
+- [x] Developer frontend dashboard
+- [x] PROVISIONING.md written
+- [x] service.yaml in repo
+- [x] CI/CD image tag fixed
