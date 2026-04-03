@@ -1,11 +1,8 @@
-# Edge Compute Infrastructure Trial Project
-
-**Duration**: 3 days (on-site)
-**Role**: Member of Technical Staff - Infrastructure
+# Edge Compute Infrastructure Mini Project
 
 ## Scenario
 
-You're joining an AI startup's infrastructure team. We have a fleet of **Raspberry Pi 5** edge devices in our office that we use as remote compute workers. Your mission is to take a brand-new, blank Raspberry Pi 5 and build the infrastructure that allows our internal developers to interact with it through AI agents.
+Configuring a brand-new, blank Raspberry Pi 5 and build the infrastructure that allows our internal developers to interact with it through AI agents.
 
 We'll give you:
 - One Raspberry Pi 5 (8GB RAM, 4 CPUs, ARM64)
@@ -108,7 +105,7 @@ The Raspberry Pi is brand new out of the box. There's no OS installed, no networ
 
 ## What We Provide
 
-- **GCP Project**: `rodela-trial-project` ([Console Link](https://console.cloud.google.com/iam-admin/iam?referrer=search&hl=en&project=rodela-trial-project))
+- **GCP Project**: `mini_project` ([Console Link](https://console.cloud.google.com/iam-admin/iam?referrer=search&hl=en&project=rodela-trial-project))
 - **Your GCP Role**: Project Owner (you'll need to set up additional permissions and resources yourself)
 - **Raspberry Pi 5**: Blank device + blank microSD card, available in the office (coordinate with @Jack for physical access)
 - **LLM Access**: Anthropic API key (will be provided separately)
@@ -190,7 +187,7 @@ We're evaluating:
 
 **Minimum Bar**: Working E2E system where an agent can execute a task on the Raspberry Pi via HTTP API, with basic access control and reproducible infrastructure.
 
-## Stretch Goals (If Time Permits)
+## Stretch Goals
 
 - Real-time task status updates (websockets, SSE)
 - Web frontend for task submission and monitoring
@@ -199,13 +196,3 @@ We're evaluating:
 - Graceful handling of Raspberry Pi disconnection/reconnection
 - Container image management for different workload types
 
-## Questions?
-
-Reach out via Slack if you need clarification on:
-- **Requirements** (what needs to be built)
-- **Access issues** (GCP permissions, Raspberry Pi access)
-- **Scope** (what's in/out of scope)
-
-Asking clarifying questions early is encouraged and viewed positively.
-
-**Note**: Questions about implementation details ("how do I connect to the Pi?", "what agent framework should I use?") are part of the exercise — figuring these out is what we're evaluating.
