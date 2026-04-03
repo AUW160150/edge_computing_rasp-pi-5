@@ -705,6 +705,7 @@
   <div id="header-meta">
     <span id="api-base-label">http://34.44.129.194</span>
     <div id="pi-pill" class="pill checking"><span class="dot"></span> Checking...</div>
+    <div id="queue-pill" class="pill checking">Queue —/—</div>
   </div>
 </header>
 
@@ -1144,9 +1145,17 @@ async function checkHealth() {
       pill.innerHTML = '<span class="dot"></span> Pi Offline';
       document.getElementById('pi-offline-warn').classList.add('visible');
     }
+    const qPill = document.getElementById('queue-pill');
+    if (data.queue) {
+      const { queued, running, capacity } = data.queue;
+      const active = queued + running;
+      qPill.className = active > 0 ? 'pill running' : 'pill checking';
+      qPill.textContent = `Queue ${active}/${capacity}`;
+    }
   } catch {
     pill.className = 'pill offline';
     pill.innerHTML = '<span class="dot"></span> API Unreachable';
+    document.getElementById('queue-pill').textContent = 'Queue —/—';
   }
   updateSubmitBtn();
 }
