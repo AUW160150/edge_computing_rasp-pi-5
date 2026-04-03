@@ -15,7 +15,7 @@ spec:
       containers:
         # Main API container
         - name: pi-api
-          image: us-central1-docker.pkg.dev/rodela-trial-project/pi-api-repo/pi-agent-api:v4
+          image: us-central1-docker.pkg.dev/rodela-trial-project/pi-api-repo/pi-agent-api:latest
           ports:
             - containerPort: 8080
           env:
