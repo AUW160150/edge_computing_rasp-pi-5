@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud-to-Edge AI Agent Platform</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0e1a;
+      --surface: #111827;
+      --surface2: #1f2937;
+      --border: #374151;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --blue: #60a5fa;
+      --green: #4ade80;
+      --yellow: #fbbf24;
+      --red: #f87171;
+      --purple: #c084fc;
+      --cyan: #22d3ee;
+      --orange: #fb923c;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif;
+      overflow: hidden;
+    }
+
+    #deck { width: 100%; height: 100%; position: relative; }
+
+    .slide {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 52px 80px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      transform: translateY(16px);
+      overflow: hidden;
+    }
+    .slide.active  { opacity: 1; pointer-events: all; transform: translateY(0); }
+    .slide.exit    { opacity: 0; transform: translateY(-16px); }
+
+    /* per-slide tinted backgrounds */
+    #s1    { background: radial-gradient(ellipse at 15% 60%, rgba(96,165,250,.12) 0%, transparent 55%), radial-gradient(ellipse at 85% 20%, rgba(192,132,252,.10) 0%, transparent 55%); }
+    #s-arch { background: radial-gradient(ellipse at 50% 50%, rgba(96,165,250,.08) 0%, transparent 60%); }
+    #s2  { background: radial-gradient(ellipse at 80% 70%, rgba(74,222,128,.08) 0%, transparent 55%), radial-gradient(ellipse at 20% 20%, rgba(96,165,250,.08) 0%, transparent 50%); }
+    #s3  { background: radial-gradient(ellipse at 50% 80%, rgba(251,191,36,.07) 0%, transparent 55%); }
+    #s4  { background: radial-gradient(ellipse at 20% 50%, rgba(34,211,238,.08) 0%, transparent 55%); }
+    #s5  { background: radial-gradient(ellipse at 80% 30%, rgba(74,222,128,.08) 0%, transparent 55%); }
+    #s6  { background: radial-gradient(ellipse at 50% 50%, rgba(96,165,250,.06) 0%, transparent 60%); }
+    #s7  { background: radial-gradient(ellipse at 20% 70%, rgba(248,113,113,.08) 0%, transparent 55%); }
+    #s8  { background: radial-gradient(ellipse at 75% 25%, rgba(251,191,36,.08) 0%, transparent 50%); }
+    #s9  { background: radial-gradient(ellipse at 30% 60%, rgba(192,132,252,.08) 0%, transparent 55%); }
+    #s10  { background: radial-gradient(ellipse at 60% 30%, rgba(34,211,238,.08) 0%, transparent 55%); }
+    #s10b { background: radial-gradient(ellipse at 70% 70%, rgba(251,191,36,.07) 0%, transparent 55%); }
+    #s11  { background: radial-gradient(ellipse at 50% 30%, rgba(74,222,128,.10) 0%, transparent 55%); }
+    #s12  { background: radial-gradient(ellipse at 20% 40%, rgba(248,113,113,.08) 0%, transparent 55%); }
+
+    /* progress */
+    #progress {
+      position: fixed; bottom: 0; left: 0; height: 3px;
+      background: linear-gradient(90deg, var(--blue), var(--purple), var(--cyan));
+      transition: width 0.35s ease; z-index: 100;
+    }
+
+    /* nav */
+    #nav { position: fixed; bottom: 22px; right: 28px; display: flex; gap: 10px; z-index: 100; align-items: center; }
+    #nav button {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: 7px 18px; border-radius: 6px;
+      cursor: pointer; font-size: 13px; transition: background 0.2s;
+    }
+    #nav button:hover { background: var(--border); }
+    #nav button:disabled { opacity: 0.3; cursor: default; }
+    #slide-counter { color: var(--muted); font-size: 12px; min-width: 48px; text-align: center; }
+    #keyhint { position: fixed; bottom: 24px; left: 28px; font-size: 11px; color: var(--border); }
+
+    /* slide number */
+    .snum { position: absolute; top: 20px; right: 28px; font-size: 11px; color: var(--border); letter-spacing: 1px; }
+
+    /* tags */
+    .tag {
+      display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 1.8px;
+      text-transform: uppercase; padding: 4px 14px; border-radius: 20px; margin-bottom: 16px;
+    }
+    .t-blue   { background: rgba(96,165,250,.15);  color: var(--blue); }
+    .t-green  { background: rgba(74,222,128,.15);  color: var(--green); }
+    .t-yellow { background: rgba(251,191,36,.15);  color: var(--yellow); }
+    .t-red    { background: rgba(248,113,113,.15); color: var(--red); }
+    .t-purple { background: rgba(192,132,252,.15); color: var(--purple); }
+    .t-cyan   { background: rgba(34,211,238,.15);  color: var(--cyan); }
+    .t-orange { background: rgba(251,146,60,.15);  color: var(--orange); }
+
+    /* typography */
+    h1 { font-size: 54px; font-weight: 800; line-height: 1.1; letter-spacing: -1.5px; }
+    h2 { font-size: 38px; font-weight: 800; line-height: 1.15; letter-spacing: -0.5px; }
+    h3 { font-size: 16px; font-weight: 700; }
+    p  { font-size: 15px; line-height: 1.65; color: var(--muted); }
+    .lead { font-size: 19px; color: var(--muted); line-height: 1.6; }
+
+    /* gradient text */
+    .g-blue   { background: linear-gradient(135deg, #f1f5f9 20%, var(--blue));   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .g-green  { background: linear-gradient(135deg, #f1f5f9 20%, var(--green));  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .g-purple { background: linear-gradient(135deg, #f1f5f9 20%, var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .g-yellow { background: linear-gradient(135deg, #f1f5f9 20%, var(--yellow)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .g-cyan   { background: linear-gradient(135deg, #f1f5f9 20%, var(--cyan));   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* layout */
+    .cols { display: flex; gap: 20px; width: 100%; align-items: stretch; }
+    .cols > * { flex: 1; }
+    .center { text-align: center; align-items: center; }
+    .w100 { width: 100%; }
+
+    /* cards */
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 22px 24px;
+    }
+    .card.c-blue   { border-color: rgba(96,165,250,.35);  background: rgba(96,165,250,.05); }
+    .card.c-green  { border-color: rgba(74,222,128,.35);  background: rgba(74,222,128,.05); }
+    .card.c-yellow { border-color: rgba(251,191,36,.35);  background: rgba(251,191,36,.05); }
+    .card.c-purple { border-color: rgba(192,132,252,.35); background: rgba(192,132,252,.05); }
+    .card.c-cyan   { border-color: rgba(34,211,238,.35);  background: rgba(34,211,238,.05); }
+    .card h3 { margin-bottom: 12px; }
+    .card.c-blue   h3 { color: var(--blue); }
+    .card.c-green  h3 { color: var(--green); }
+    .card.c-yellow h3 { color: var(--yellow); }
+    .card.c-purple h3 { color: var(--purple); }
+    .card.c-cyan   h3 { color: var(--cyan); }
+
+    /* bullets */
+    ul.bl { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    ul.bl li { font-size: 14px; color: var(--muted); padding-left: 20px; position: relative; line-height: 1.5; }
+    ul.bl li::before { content: '▸'; position: absolute; left: 0; }
+    ul.bl li strong { color: var(--text); }
+    .card.c-blue   ul.bl li::before { color: var(--blue); }
+    .card.c-green  ul.bl li::before { color: var(--green); }
+    .card.c-yellow ul.bl li::before { color: var(--yellow); }
+    .card.c-purple ul.bl li::before { color: var(--purple); }
+    .card.c-cyan   ul.bl li::before { color: var(--cyan); }
+
+    /* stats */
+    .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; width: 100%; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; text-align: center; }
+    .stat .num { font-size: 30px; font-weight: 800; }
+    .stat .desc { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* timeline */
+    .tl { display: flex; flex-direction: column; }
+    .tl-item { display: flex; gap: 16px; }
+    .tl-left { display: flex; flex-direction: column; align-items: center; width: 40px; flex-shrink: 0; }
+    .tl-dot  { width: 11px; height: 11px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+    .tl-line { flex: 1; width: 2px; background: var(--border); margin: 3px 0; min-height: 24px; }
+    .tl-body { padding-bottom: 20px; }
+    .tl-body h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .tl-body p  { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+    /* screenshot */
+    .ss { border-radius: 10px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 8px 28px rgba(0,0,0,.5); }
+    .ss img { display: block; width: 100%; height: auto; }
+    .ss-cap { font-size: 11px; color: var(--muted); text-align: center; margin-top: 7px; }
+    .ss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; width: 100%; }
+
+    /* architecture cluster boxes */
+    .cluster { border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .cluster-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; }
+    .cluster.gke { border: 1.5px dashed rgba(96,165,250,.5);  background: rgba(96,165,250,.04); }
+    .cluster.pi  { border: 1.5px dashed rgba(74,222,128,.5);  background: rgba(74,222,128,.04); }
+    .cluster.gke .cluster-label { color: var(--blue); }
+    .cluster.pi  .cluster-label { color: var(--green); }
+    .f-node {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; text-align: center;
+    }
+    .f-node .icon  { font-size: 18px; }
+    .f-node .lbl   { font-size: 11px; font-weight: 700; color: var(--text); margin-top: 3px; }
+    .f-node .sub   { font-size: 10px; color: var(--muted); margin-top: 1px; }
+    .f-node.fblue  { border-color: rgba(96,165,250,.4); }
+    .f-node.fgreen { border-color: rgba(74,222,128,.4); }
+    .f-node.fyellow{ border-color: rgba(251,191,36,.4); }
+    .f-node.fpurple{ border-color: rgba(192,132,252,.4); }
+    .flow-row { display: flex; align-items: center; gap: 6px; width: 100%; justify-content: center; }
+    .arr { color: var(--muted); font-size: 16px; flex-shrink: 0; }
+    .cluster-inner { display: flex; gap: 8px; justify-content: center; }
+
+    /* security layers */
+    .sec-layers { display: flex; gap: 0; width: 100%; }
+    .sec-l {
+      flex: 1; text-align: center; padding: 16px 10px;
+      border: 1px solid var(--border); background: var(--surface); position: relative;
+    }
+    .sec-l:not(:first-child) { border-left: none; }
+    .sec-l:first-child  { border-radius: 10px 0 0 10px; }
+    .sec-l:last-child   { border-radius: 0 10px 10px 0; }
+    .sec-l .ln { font-size: 20px; font-weight: 800; }
+    .sec-l h4  { font-size: 12px; font-weight: 700; margin: 5px 0 3px; }
+    .sec-l p   { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+    /* code */
+    pre {
+      background: #0d1117; border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px 18px; font-size: 13px; font-family: 'SF Mono','Fira Code',monospace;
+      color: var(--text); overflow-x: auto; line-height: 1.6;
+    }
+    .kw  { color: #ff7b72; }
+    .str { color: #a5d6ff; }
+    .cmt { color: var(--muted); }
+    .fn  { color: #d2a8ff; }
+
+    /* production improvements */
+    .imp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+    .imp { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; border-left-width: 3px; }
+    .imp.crit { border-left-color: var(--red); }
+    .imp.warn { border-left-color: var(--yellow); }
+    .imp.low  { border-left-color: var(--blue); }
+    .imp h4   { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .imp p    { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+    /* roadblock cards */
+    .rb { display: flex; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .rb + .rb { margin-top: 10px; }
+    .rb-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+    .rb-body h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+    .rb-body p  { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .fix { color: var(--green); font-weight: 700; }
+
+    /* demo url pill */
+    .url-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.3);
+      border-radius: 8px; padding: 10px 20px; font-family: 'SF Mono','Fira Code',monospace;
+      font-size: 16px; color: var(--green); text-decoration: none;
+    }
+    .url-pill:hover { background: rgba(74,222,128,.18); }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+<div id="deck">
+
+<!-- ═══════════════════════════════════════
+     S1 · Title
+═══════════════════════════════════════ -->
+<div class="slide active" id="s1">
+  <div class="tag t-blue">3-Day Trial Project · April 2026</div>
+  <h1 class="g-blue">Cloud-to-Edge<br>AI Agent Platform</h1>
+  <p class="lead" style="margin-top:18px;max-width:580px;text-align:center;">
+    Natural language tasks → Claude AI agent → real shell execution on a Raspberry Pi 5 —
+    all streaming live back to the developer.
+  </p>
+  <div style="margin-top:36px;display:flex;gap:16px;flex-wrap:wrap;justify-content:center;">
+    <span class="tag t-blue" style="margin:0;">GKE</span>
+    <span class="tag t-purple" style="margin:0;">Claude claude-opus-4-6</span>
+    <span class="tag t-green" style="margin:0;">Raspberry Pi 5</span>
+    <span class="tag t-cyan" style="margin:0;">Tailscale</span>
+    <span class="tag t-orange" style="margin:0;">Terraform</span>
+    <span class="tag t-yellow" style="margin:0;">Docker Sandbox</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S2 · The Mission
+═══════════════════════════════════════ -->
+<div class="slide" id="s2">
+  <div class="snum">01 / 12</div>
+  <div class="tag t-purple">Overview</div>
+  <h2 class="g-purple" style="margin-bottom:28px;">The Mission</h2>
+  <div class="cols w100">
+    <div class="card c-blue">
+      <h3>The Brief</h3>
+      <p style="margin-top:10px;font-size:14px;line-height:1.7;">
+        Build a cloud-to-edge AI agent platform where developers submit
+        <strong style="color:var(--text);">natural language tasks</strong> via HTTP and a
+        Claude AI agent interprets, executes shell commands on a
+        <strong style="color:var(--text);">physical Raspberry Pi 5</strong>,
+        and streams results back in real time.
+      </p>
+    </div>
+    <div class="card c-yellow">
+      <h3>Constraints</h3>
+      <ul class="bl" style="margin-top:10px;">
+        <li>Complete in <strong>3 days</strong></li>
+        <li>Real hardware — Pi on a home network</li>
+        <li><strong>Production security</strong> posture, no shortcuts</li>
+        <li>Everything as code — Terraform, Docker, K8s</li>
+        <li>No hardcoded secrets, ever</li>
+      </ul>
+    </div>
+    <div class="card c-green">
+      <h3>Success Criteria</h3>
+      <ul class="bl" style="margin-top:10px;">
+        <li><strong>End-to-end flow:</strong> browser → GKE → Claude → Pi → stdout</li>
+        <li><strong>Real-time streaming</strong> via SSE</li>
+        <li><strong>Secure private tunnel</strong> — Pi not internet-exposed</li>
+        <li><strong>Isolated execution</strong> — Docker sandbox per command</li>
+        <li><strong>Reproducible</strong> — one script provisions a new Pi</li>
+        <li><strong>Observable</strong> — structured logs, liveness monitor</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S-ARCH · System Architecture
+═══════════════════════════════════════ -->
+<div class="slide" id="s-arch">
+  <div class="snum">02 / 12</div>
+  <div class="tag t-blue">System Architecture</div>
+  <h2 class="g-blue" style="margin-bottom:16px;">End-to-End Architecture</h2>
+  <div class="mermaid" id="arch-diagram" style="width:100%;flex:1;display:flex;align-items:center;justify-content:center;">
+graph LR
+    DEV["👨‍💻 Developer\ndashboard / curl"]
+
+    subgraph GKE["☁️ GKE Cluster · us-central1-a"]
+        LB["🌐 Load Balancer\n34.44.129.194:80"]
+        API["🐍 Flask API\nTask Queue · SSE"]
+        AGENT["🤖 Agent Running\nclaude-opus-4-6"]
+        TS["🔒 Tailscale Sidecar\nSOCKS5 :1055"]
+    end
+
+    LLM["☁️ Anthropic\napi.anthropic.com"]
+
+    subgraph PI["🫐 Raspberry Pi 5 · home network"]
+        PIAPI["🐍 Pi Flask API\n:8080 · X-Pi-Token"]
+        SANDBOX["📦 Docker Sandbox\n--network=none"]
+    end
+
+    DEV -->|"POST /tasks · X-API-Key"| LB
+    LB --> API
+    API --> AGENT
+    AGENT <-->|"messages.create()"| LLM
+    AGENT --> TS
+    TS <-->|"WireGuard mesh"| PIAPI
+    PIAPI --> SANDBOX
+    SANDBOX -->|"stdout / stderr"| PIAPI
+    PIAPI -->|"JSON response"| AGENT
+    AGENT -.->|"SSE stream"| DEV
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S3 · Progression
+═══════════════════════════════════════ -->
+<div class="slide" id="s3">
+  <div class="snum">03 / 12</div>
+  <div class="tag t-yellow">Journey</div>
+  <h2 class="g-yellow" style="margin-bottom:24px;">Progression</h2>
+  <div class="cols w100">
+    <div>
+      <div class="tl">
+        <div class="tl-item">
+          <div class="tl-left"><div class="tl-dot" style="background:var(--blue);"></div><div class="tl-line"></div></div>
+          <div class="tl-body">
+            <h4 style="color:var(--blue);">Day 1 — Hardware &amp; Foundation</h4>
+            <p>Flash Pi OS headless, configure SSH/WiFi, install Docker, first Docker test container. GKE cluster + Artifact Registry + Secret Manager via Terraform. First HTTP response from Pi over Cloudflare tunnel.</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-left"><div class="tl-dot" style="background:var(--yellow);"></div><div class="tl-line"></div></div>
+          <div class="tl-body">
+            <h4 style="color:var(--yellow);">Day 2 — Agent Pipeline</h4>
+            <p>Build GKE Flask API with task queue + SSE streaming. Claude agent with run_command tool. Docker-in-Docker sandbox on Pi. Tailscale mesh replaces Cloudflare — private WireGuard tunnel. Tailscale ACLs enforced.</p>
+          </div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-left"><div class="tl-dot" style="background:var(--green);"></div></div>
+          <div class="tl-body" style="padding-bottom:0;">
+            <h4 style="color:var(--green);">Day 2 — Observability &amp; Polish</h4>
+            <p>Real-time agent thought trail via SSE, structured logging, Pi liveness monitor, task cancellation, Workload Identity in Terraform, animated dashboard, full architecture docs.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="stats">
+        <div class="stat"><div class="num" style="color:var(--blue);">6</div><div class="desc">Services built &amp; deployed</div></div>
+        <div class="stat"><div class="num" style="color:var(--red);">5</div><div class="desc">Security layers</div></div>
+        <div class="stat"><div class="num" style="color:var(--green);">13</div><div class="desc">Feature phases shipped</div></div>
+        <div class="stat"><div class="num" style="color:var(--purple);">1</div><div class="desc">Script to provision a Pi</div></div>
+        <div class="stat"><div class="num" style="color:var(--yellow);">1</div><div class="desc">Physical Pi, home network</div></div>
+        <div class="stat"><div class="num" style="color:var(--cyan);">0</div><div class="desc">Hardcoded secrets</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S4 · Day 1 Hardware
+═══════════════════════════════════════ -->
+<div class="slide" id="s4">
+  <div class="snum">04 / 12</div>
+  <div class="tag t-cyan">Day 1 · Hardware</div>
+  <h2 class="g-cyan" style="margin-bottom:20px;">Flashing &amp; Configuring the Raspberry Pi 5</h2>
+  <div class="ss-grid">
+    <div>
+      <div class="ss">
+        <img src="slides-img/s1.png" alt="Pi Imager OS customization" />
+      </div>
+      <p class="ss-cap">Pi Imager — SSH keys &amp; WiFi pre-configured before flashing</p>
+    </div>
+    <div>
+      <div class="ss">
+        <img src="slides-img/s2.png" alt="Pi Imager write confirmation" />
+      </div>
+      <p class="ss-cap">Write confirmation — fully headless, no monitor required</p>
+    </div>
+  </div>
+  <div class="card w100" style="margin-top:16px;">
+    <ul class="bl" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+      <li>Raspberry Pi OS Lite 64-bit — headless from day one</li>
+      <li>SSH public key pre-injected via Pi Imager settings</li>
+      <li>WiFi credentials embedded in the image before flash</li>
+      <li>Docker, Tailscale, Python installed via <code style="font-size:11px;color:var(--blue);">setup.sh</code> in one command</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S5 · First Milestones
+═══════════════════════════════════════ -->
+<div class="slide" id="s5">
+  <div class="snum">05 / 12</div>
+  <div class="tag t-green">Day 1 · First Signals</div>
+  <h2 class="g-green" style="margin-bottom:20px;">Docker on Pi — first HTTP response</h2>
+  <div class="ss-grid">
+    <div>
+      <div class="ss">
+        <img src="slides-img/s4.png" alt="Docker build and run on Pi" />
+      </div>
+      <p class="ss-cap">First Docker build &amp; run on Pi — ARM64 container confirmed working</p>
+    </div>
+    <div>
+      <div class="ss">
+        <img src="slides-img/s5.png" alt="Hello from Rodela Pi via Cloudflare tunnel" />
+      </div>
+      <p class="ss-cap">"Hello from Rodela Pi!" via Cloudflare tunnel — Pi reachable from internet</p>
+    </div>
+  </div>
+  <div class="card w100" style="margin-top:16px;border-left:3px solid var(--yellow);">
+    <p style="font-size:14px;">The Cloudflare tunnel was a quick sanity check — it was later <strong style="color:var(--yellow);">replaced by Tailscale WireGuard</strong>. Tailscale gives us cryptographic node identity, tag-based ACLs, and zero open internet ports on the Pi.</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S6 · Architecture
+═══════════════════════════════════════ -->
+<div class="slide" id="s6">
+  <div class="snum">06 / 12</div>
+  <div class="tag t-blue">Architecture</div>
+  <h2 class="g-blue" style="margin-bottom:22px;">Cloud-to-Edge Request Flow</h2>
+
+  <div class="flow-row w100" style="gap:6px;flex-wrap:nowrap;align-items:center;">
+
+    <!-- Developer -->
+    <div class="f-node fpurple" style="min-width:80px;flex-shrink:0;">
+      <div class="icon">👨‍💻</div>
+      <div class="lbl">Developer</div>
+      <div class="sub">Dashboard</div>
+    </div>
+
+    <div class="arr">→</div>
+
+    <!-- GKE Cluster -->
+    <div class="cluster gke" style="flex:2;">
+      <div class="cluster-label">☁️ GKE Cluster · GCP us-central1-a</div>
+      <div class="cluster-inner">
+        <div class="f-node fblue" style="flex:1;">
+          <div class="icon">🌐</div>
+          <div class="lbl">GCP Load Balancer</div>
+          <div class="sub">:80 · X-API-Key</div>
+        </div>
+        <div class="f-node fblue" style="flex:1;">
+          <div class="icon">🐍</div>
+          <div class="lbl">Flask API</div>
+          <div class="sub">Task queue · SSE</div>
+        </div>
+        <div class="f-node fyellow" style="flex:1;">
+          <div class="icon">🤖</div>
+          <div class="lbl">Agent Running</div>
+          <div class="sub">claude-opus-4-6</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arr">→</div>
+
+    <!-- Tailscale bridge -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;">
+      <div class="f-node" style="border-color:rgba(251,191,36,.5);background:rgba(251,191,36,.06);min-width:88px;">
+        <div class="icon">🔒</div>
+        <div class="lbl" style="color:var(--yellow);">Tailscale</div>
+        <div class="sub">WireGuard mesh</div>
+      </div>
+      <div style="font-size:9px;color:var(--muted);text-align:center;max-width:88px;">SOCKS5 sidecar ↔ tag:pi</div>
+    </div>
+
+    <div class="arr">→</div>
+
+    <!-- Pi -->
+    <div class="cluster pi" style="flex:1.2;">
+      <div class="cluster-label">🫐 Raspberry Pi 5 · home network</div>
+      <div class="cluster-inner">
+        <div class="f-node fgreen" style="flex:1;">
+          <div class="icon">🐍</div>
+          <div class="lbl">Pi Flask API</div>
+          <div class="sub">:8080 · X-Pi-Token</div>
+        </div>
+        <div class="f-node fgreen" style="flex:1;">
+          <div class="icon">📦</div>
+          <div class="lbl">Docker Sandbox</div>
+          <div class="sub">--network=none</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p style="text-align:center;margin-top:8px;font-size:11px;color:var(--border);">SSE stream flows right-to-left back to developer in real time</p>
+
+  <div class="cols w100" style="margin-top:16px;gap:14px;">
+    <div class="card c-blue" style="padding:14px 16px;">
+      <h3 style="font-size:13px;">GKE Pod</h3>
+      <ul class="bl" style="margin-top:8px;gap:6px;">
+        <li><strong>Flask API</strong> — POST /tasks, SSE stream, cancel</li>
+        <li><strong>Claude Agent</strong> — tool loop, emit callbacks</li>
+        <li><strong>Tailscale sidecar</strong> — SOCKS5 :1055 → WireGuard bridge</li>
+      </ul>
+    </div>
+    <div class="card c-green" style="padding:14px 16px;">
+      <h3 style="font-size:13px;">Raspberry Pi 5</h3>
+      <ul class="bl" style="margin-top:8px;gap:6px;">
+        <li><strong>Pi Flask API</strong> — /execute, /status endpoints</li>
+        <li><strong>Docker Sandbox</strong> — ephemeral per command</li>
+        <li><strong>Tailscale</strong> — tag:pi, no open ports</li>
+      </ul>
+    </div>
+    <div class="card c-purple" style="padding:14px 16px;">
+      <h3 style="font-size:13px;">CI / CD</h3>
+      <ul class="bl" style="margin-top:8px;gap:6px;">
+        <li><strong>GitHub Actions</strong> — build &amp; push on merge to main</li>
+        <li><strong>Workload Identity</strong> — no long-lived service keys</li>
+        <li><strong>Terraform</strong> — GKE, Artifact Registry, IAM, Secrets</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S7 · Security
+═══════════════════════════════════════ -->
+<div class="slide" id="s7">
+  <div class="snum">07 / 12</div>
+  <div class="tag t-red">Safety &amp; Security</div>
+  <h2 class="g-yellow" style="margin-bottom:24px;">5-Layer Security Model</h2>
+  <div class="sec-layers w100">
+    <div class="sec-l" style="border-top:3px solid var(--purple);">
+      <div class="ln" style="color:var(--purple);">1</div>
+      <h4>X-API-Key</h4>
+      <p>Developer → GKE. Key stored in GCP Secret Manager.</p>
+    </div>
+    <div class="sec-l" style="border-top:3px solid var(--blue);">
+      <div class="ln" style="color:var(--blue);">2</div>
+      <h4>Tailscale ACL</h4>
+      <p>tag:gke → tag:pi:8080 only. Zero open ports on Pi.</p>
+    </div>
+    <div class="sec-l" style="border-top:3px solid var(--cyan);">
+      <div class="ln" style="color:var(--cyan);">3</div>
+      <h4>X-Pi-Token</h4>
+      <p>Agent → Pi API auth. Separate secret, injected at runtime.</p>
+    </div>
+    <div class="sec-l" style="border-top:3px solid var(--yellow);">
+      <div class="ln" style="color:var(--yellow);">4</div>
+      <h4>Docker Sandbox</h4>
+      <p>--network=none · --cpus=0.5 · --user=nobody · --rm</p>
+    </div>
+    <div class="sec-l" style="border-top:3px solid var(--green);">
+      <div class="ln" style="color:var(--green);">5</div>
+      <h4>Secret Manager</h4>
+      <p>Zero hardcoded credentials. Workload Identity for GKE access.</p>
+    </div>
+  </div>
+  <div class="cols w100" style="margin-top:20px;gap:14px;">
+    <div class="card c-cyan">
+      <h3>Why Tailscale over Cloudflare?</h3>
+      <p style="font-size:13px;margin-top:8px;">Tailscale gives cryptographic node identity (WireGuard keys), tag-based ACLs, and no internet exposure — the Pi only accepts traffic from the GKE pod tagged <code style="color:var(--cyan);">tag:gke</code>.</p>
+    </div>
+    <div class="card c-yellow">
+      <h3>Why Docker-in-Docker sandbox?</h3>
+      <p style="font-size:13px;margin-top:8px;">Claude instructs the Pi to run arbitrary shell commands. Each command runs in an ephemeral container with no network, limited CPU, and as <code style="color:var(--yellow);">nobody</code> — blast radius fully contained.</p>
+    </div>
+    <div class="card c-purple">
+      <h3>Workload Identity Federation</h3>
+      <p style="font-size:13px;margin-top:8px;">GitHub Actions authenticates to GCP via OIDC token exchange — no service account JSON stored in GitHub secrets. Declared in Terraform, scoped to this repo only.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S8 · Ease of Use
+═══════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════
+     S9 · Dashboard
+═══════════════════════════════════════ -->
+<div class="slide" id="s9">
+  <div class="snum">08 / 12</div>
+  <div class="tag t-purple">Dashboard</div>
+  <h2 class="g-purple" style="margin-bottom:16px;">Live dashboard — everything in one view</h2>
+  <div class="ss w100" style="max-height:380px;overflow:hidden;">
+    <img src="slides-img/dashboard.png" alt="Pi Agent Dashboard" style="width:100%;height:auto;object-fit:cover;object-position:top;" />
+  </div>
+  <p class="ss-cap">Pi Agent Dashboard — live SSE feed, animated flow diagram, task history, Pi health</p>
+  <div class="cols w100" style="margin-top:14px;gap:14px;">
+    <div class="card c-yellow" style="padding:14px 16px;">
+      <ul class="bl">
+        <li>Animated flow diagram — <strong style="color:var(--yellow);">yellow nodes</strong> highlight which step is executing</li>
+        <li>Live agent trail — thought → command → output as they happen</li>
+      </ul>
+    </div>
+    <div class="card c-blue" style="padding:14px 16px;">
+      <ul class="bl">
+        <li>Pi health: CPU, memory, disk — polled every 30 s</li>
+        <li>Task history with re-stream, cancel, and result detail</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S10 · Getting Started
+═══════════════════════════════════════ -->
+<div class="slide" id="s10">
+  <div class="snum">09 / 12</div>
+  <div class="tag t-cyan">Developer Onboarding</div>
+  <h2 class="g-cyan" style="margin-bottom:20px;">Getting Started</h2>
+  <div class="cols w100" style="gap:18px;align-items:flex-start;">
+
+    <!-- Prerequisites -->
+    <div style="display:flex;flex-direction:column;gap:12px;flex:1;">
+      <div class="card" style="border-left:3px solid var(--cyan);">
+        <h3 style="color:var(--cyan);margin-bottom:10px;">Prerequisites</h3>
+        <ul class="bl">
+          <li>GCP account with billing enabled</li>
+          <li>Anthropic API key</li>
+          <li>Tailscale account (free tier is fine)</li>
+          <li>Raspberry Pi 5 + SD card + power supply</li>
+          <li>GitHub account (for CI/CD deploys)</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Steps -->
+    <div style="flex:2;display:flex;flex-direction:column;gap:9px;">
+
+      <div style="display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
+        <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:rgba(248,113,113,.15);color:var(--red);white-space:nowrap;margin-top:1px;">HARD</span>
+        <div><div style="font-size:13px;font-weight:700;margin-bottom:2px;">1 — Provision GCP infrastructure</div><div style="font-size:12px;color:var(--muted);">Run <code style="color:var(--accent);">terraform apply</code> in <code>terraform/</code>. Creates GKE cluster, Artifact Registry, IAM, Secret Manager secrets. Requires GCP familiarity.</div></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
+        <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:rgba(251,191,36,.15);color:var(--yellow);white-space:nowrap;margin-top:1px;">MED</span>
+        <div><div style="font-size:13px;font-weight:700;margin-bottom:2px;">2 — Set 5 secrets in Secret Manager + Tailscale ACLs</div><div style="font-size:12px;color:var(--muted);">Paste API keys into GCP console. Configure Tailscale tag-based ACL grant (<code style="color:var(--accent);">tag:gke → tag:pi:8080</code>). Generate tagged auth keys.</div></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
+        <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:rgba(74,222,128,.15);color:var(--green);white-space:nowrap;margin-top:1px;">EASY</span>
+        <div><div style="font-size:13px;font-weight:700;margin-bottom:2px;">3 — Flash Pi OS + run setup.sh</div><div style="font-size:12px;color:var(--muted);">Use Pi Imager to flash headless OS with SSH + WiFi pre-configured. Then: <code style="color:var(--accent);">./setup.sh &lt;PI_TOKEN&gt; &lt;TS_KEY&gt;</code> — installs Docker, joins Tailscale, starts Pi API in ~5 min.</div></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
+        <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:rgba(74,222,128,.15);color:var(--green);white-space:nowrap;margin-top:1px;">EASY</span>
+        <div><div style="font-size:13px;font-weight:700;margin-bottom:2px;">4 — Push to main → CI/CD deploys automatically</div><div style="font-size:12px;color:var(--muted);">GitHub Actions builds the GKE image, pushes to Artifact Registry, and rolls out via <code style="color:var(--accent);">kubectl set image</code>. No manual kubectl needed.</div></div>
+      </div>
+
+      <div style="display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
+        <span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:12px;background:rgba(74,222,128,.15);color:var(--green);white-space:nowrap;margin-top:1px;">EASY</span>
+        <div><div style="font-size:13px;font-weight:700;margin-bottom:2px;">5 — Open dashboard, type a task, watch it run</div><div style="font-size:12px;color:var(--muted);">Open <code style="color:var(--accent);">dashboard/index.html</code>, enter your API key, type any natural language task. Results stream live within seconds.</div></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S10b · Production Improvements
+═══════════════════════════════════════ -->
+<div class="slide" id="s10b">
+  <div class="snum">10 / 12</div>
+  <div class="tag t-yellow">Improvements Needed</div>
+  <h2 class="g-yellow" style="margin-bottom:24px;">What production deployment requires</h2>
+  <div class="imp-grid">
+    <div class="imp crit">
+      <h4>🔴 HTTPS / TLS termination</h4>
+      <p>GCP-managed certificate + Ingress. Currently plain HTTP — X-API-Key in cleartext over the wire.</p>
+    </div>
+    <div class="imp crit">
+      <h4>🔴 Authentication hardening</h4>
+      <p>Replace static API key with OAuth2/JWT. Per-user rate limiting and audit log needed.</p>
+    </div>
+    <div class="imp warn">
+      <h4>🟡 Horizontal scaling</h4>
+      <p>Single worker thread is correct for one Pi. Multi-Pi needs a job queue (Redis/Pub-Sub) and per-Pi worker pools.</p>
+    </div>
+    <div class="imp warn">
+      <h4>🟡 Task persistence</h4>
+      <p>Task state is in-memory — lost on pod restart. Needs Firestore or Cloud Spanner for durability across restarts.</p>
+    </div>
+    <div class="imp low">
+      <h4>🔵 Memory limits on Pi sandbox</h4>
+      <p>--memory=512m flag is set but unenforced — Pi OS Bookworm uses cgroup v2 but memory accounting is disabled by default. Needs <code style="font-size:11px;">cgroup_enable=memory</code> in kernel boot params.</p>
+    </div>
+    <div class="imp low">
+      <h4>🔵 Observability stack</h4>
+      <p>Structured logs go to Cloud Logging today. Needs Grafana dashboards, alerting, and distributed tracing (OpenTelemetry).</p>
+    </div>
+    <div class="imp low">
+      <h4>🔵 Tailscale auth key rotation</h4>
+      <p>Tagged ephemeral auth keys should auto-rotate. Currently set manually as a K8s secret — not yet in Terraform.</p>
+    </div>
+    <div class="imp low">
+      <h4>🔵 Pi setup idempotency</h4>
+      <p>setup.sh works cleanly for a fresh Pi. Needs re-run safety checks for re-provisioning an existing device.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S11 · Live Demo
+═══════════════════════════════════════ -->
+<div class="slide center" id="s11">
+  <div class="snum">11 / 12</div>
+  <div class="tag t-green">Live Demo</div>
+  <h1 style="font-size:46px;background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Let's run it live.</h1>
+  <p class="lead" style="margin-top:16px;max-width:520px;">Type a question. Watch it travel browser → GKE → Claude → Tailscale → Pi → Docker → back.</p>
+
+  <div style="margin-top:28px;display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:560px;">
+    <a class="url-pill" href="dashboard/index.html" target="_blank">🖥 &nbsp; Open Dashboard</a>
+    <span style="font-size:12px;color:var(--muted);font-family:'SF Mono','Fira Code',monospace;">API: http://34.44.129.194</span>
+  </div>
+
+  <div style="margin-top:28px;display:flex;gap:28px;">
+    <div style="text-align:center;"><div style="font-size:26px;">🫐</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">Pi 5 · 100.103.122.25</div></div>
+    <div style="text-align:center;"><div style="font-size:26px;">🤖</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">claude-opus-4-6</div></div>
+    <div style="text-align:center;"><div style="font-size:26px;">☁️</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">GKE · us-central1-a</div></div>
+    <div style="text-align:center;"><div style="font-size:26px;">🔒</div><div style="font-size:11px;color:var(--muted);margin-top:3px;">Tailscale WireGuard</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     S12 · Roadblocks
+═══════════════════════════════════════ -->
+<div class="slide" id="s12">
+  <div class="snum">12 / 12</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:4px;">
+    <div class="tag t-red" style="margin:0;">Roadblocks &amp; Troubleshooting</div>
+    <div style="display:flex;gap:10px;">
+      <a class="url-pill" href="dashboard/index.html" target="_blank" style="font-size:12px;padding:6px 14px;">🖥 Open Live Dashboard</a>
+    </div>
+  </div>
+  <h2 class="g-yellow" style="margin-bottom:20px;">What broke, and how I fixed it</h2>
+  <div class="w100">
+    <div class="rb">
+      <div class="rb-icon">🔥</div>
+      <div class="rb-body">
+        <h4>Terraform deleted the GKE node pool</h4>
+        <p><code style="font-size:11px;color:var(--red);">remove_default_node_pool=true</code> in apply destroyed the existing node pool. <span class="fix">Fix:</span> imported all existing GCP resources into Terraform state and re-applied to recreate from scratch.</p>
+      </div>
+    </div>
+    <div class="rb">
+      <div class="rb-icon">🌐</div>
+      <div class="rb-body">
+        <h4>/pi/status timed out — SOCKS5 proxy missing</h4>
+        <p>GKE API was making a direct HTTP request to the Pi's Tailscale IP, which isn't routable without the sidecar. <span class="fix">Fix:</span> added <code style="font-size:11px;color:var(--blue);">proxies={"http":"socks5h://localhost:1055"}</code> to the requests call.</p>
+      </div>
+    </div>
+    <div class="rb">
+      <div class="rb-icon">🔐</div>
+      <div class="rb-body">
+        <h4>Workload Identity binding referenced wrong repository</h4>
+        <p>IAM member used <code style="font-size:11px;color:var(--red);">rodela/rodela-trial-project</code> but actual binding was <code style="font-size:11px;color:var(--blue);">Asari-AI/rodela-trial-project</code>. <span class="fix">Fix:</span> found correct principal from gcloud, updated main.tf and re-imported.</p>
+      </div>
+    </div>
+    <div class="rb">
+      <div class="rb-icon">📡</div>
+      <div class="rb-body">
+        <h4>Tailscale ACL format mismatch</h4>
+        <p>Account uses the newer <code style="font-size:11px;color:var(--blue);">grants</code> format, not legacy <code style="font-size:11px;color:var(--red);">acls</code> array — UI rejected the policy silently. <span class="fix">Fix:</span> rewrote ACL using grants array with src/dst/ip fields.</p>
+      </div>
+    </div>
+    <div class="rb">
+      <div class="rb-icon">📦</div>
+      <div class="rb-body">
+        <h4>GKE deployment stuck on hardcoded image tag</h4>
+        <p>deployment.yaml used <code style="font-size:11px;color:var(--red);">:v4</code> which matched nothing pushed. CI only pushed <code style="font-size:11px;color:var(--blue);">:git-sha</code>. <span class="fix">Fix:</span> deployment.yaml → <code style="font-size:11px;color:var(--blue);">:latest</code>; CI updated to push both <code>:sha</code> and <code>:latest</code>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /#deck -->
+
+<div id="progress" style="width:7.7%;"></div>
+<div id="nav">
+  <button id="btn-prev" disabled>← Prev</button>
+  <span id="slide-counter">1 / 13</span>
+  <button id="btn-next">Next →</button>
+</div>
+<div id="keyhint">← → arrow keys</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      background: 'transparent',
+      primaryColor: '#1f2937',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#4b5563',
+      lineColor: '#94a3b8',
+      secondaryColor: '#111827',
+      tertiaryColor: '#1f2937',
+      edgeLabelBackground: '#0a0e1a',
+      clusterBkg: 'rgba(96,165,250,0.06)',
+      clusterBorder: 'rgba(96,165,250,0.35)',
+      titleColor: '#f1f5f9',
+      nodeTextColor: '#e2e8f0',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontSize: '13px',
+    }
+  });
+
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let cur = 0;
+
+  function goTo(n) {
+    if (n < 0 || n >= total) return;
+    slides[cur].classList.remove('active');
+    slides[cur].classList.add('exit');
+    const prev = cur;
+    cur = n;
+    slides[cur].classList.add('active');
+    document.getElementById('slide-counter').textContent = (cur + 1) + ' / ' + total;
+    document.getElementById('progress').style.width = ((cur + 1) / total * 100) + '%';
+    document.getElementById('btn-prev').disabled = cur === 0;
+    document.getElementById('btn-next').disabled = cur === total - 1;
+    setTimeout(() => slides[prev].classList.remove('exit'), 400);
+  }
+
+  document.getElementById('btn-next').addEventListener('click', () => goTo(cur + 1));
+  document.getElementById('btn-prev').addEventListener('click', () => goTo(cur - 1));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') goTo(cur + 1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goTo(cur - 1);
+  });
+</script>
+</body>
+</html>
