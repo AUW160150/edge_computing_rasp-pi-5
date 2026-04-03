@@ -495,36 +495,151 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-    /* ── System trail ── */
-    .entry.system {
-      border-left-color: transparent;
-      background: transparent;
-      padding: 2px 12px;
+    /* ── System trail (hidden — replaced by flow diagram) ── */
+    .entry.system { display: none; }
+
+    /* ── Request Flow Diagram ── */
+    #flow-diagram {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
     }
-    .entry.system .entry-body {
+    #flow-diagram-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .flow-nodes {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 0;
+      overflow-x: auto;
+      padding-bottom: 4px;
     }
-    .system-time {
-      font-family: var(--mono);
+    .flow-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+    .flow-node-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 90px;
+      height: 64px;
+      border-radius: var(--radius);
+      border: 1.5px solid var(--border);
+      background: var(--surface2);
+      transition: all 0.3s ease;
+      position: relative;
+      gap: 4px;
+      padding: 6px;
+    }
+    .flow-node-icon { font-size: 18px; line-height: 1; }
+    .flow-node-label {
       font-size: 10px;
+      font-weight: 600;
       color: var(--muted);
+      text-align: center;
+      line-height: 1.3;
+      transition: color 0.3s;
+    }
+    .flow-node-sublabel {
+      font-size: 9px;
+      color: var(--muted);
+      font-family: var(--mono);
+      text-align: center;
+      opacity: 0.6;
+    }
+    .flow-arrow {
+      width: 28px;
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      margin-top: -18px;
     }
-    .system-text {
-      font-size: 12px;
-      color: var(--muted);
+    .flow-arrow-line {
+      width: 100%;
+      height: 2px;
+      background: var(--border);
+      position: relative;
+      transition: background 0.3s;
     }
-    .system-dot {
-      width: 6px; height: 6px;
+    .flow-arrow-line::after {
+      content: '';
+      position: absolute;
+      right: -1px;
+      top: -3px;
+      border: 4px solid transparent;
+      border-left-color: var(--border);
+      transition: border-left-color 0.3s;
+    }
+
+    /* Node states */
+    .flow-node-box.idle { border-color: var(--border); background: var(--surface2); }
+    .flow-node-box.active {
+      border-color: var(--yellow);
+      background: #1a1500;
+      box-shadow: 0 0 14px rgba(234,179,8,0.35);
+    }
+    .flow-node-box.active .flow-node-label { color: var(--yellow); }
+    .flow-node-box.active::after {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: var(--radius);
+      border: 1.5px solid var(--yellow);
+      animation: nodeGlow 1s infinite alternate;
+    }
+    @keyframes nodeGlow {
+      from { opacity: 0.4; }
+      to   { opacity: 1; }
+    }
+    .flow-node-box.done {
+      border-color: var(--green);
+      background: #0d1f14;
+    }
+    .flow-node-box.done .flow-node-label { color: var(--green); }
+    .flow-node-box.error {
+      border-color: var(--red);
+      background: var(--red-dim);
+    }
+    .flow-node-box.error .flow-node-label { color: var(--red); }
+
+    /* Arrow states */
+    .flow-arrow.active .flow-arrow-line {
+      background: var(--yellow);
+      animation: arrowPulse 0.8s infinite alternate;
+    }
+    .flow-arrow.active .flow-arrow-line::after { border-left-color: var(--yellow); }
+    .flow-arrow.done .flow-arrow-line { background: var(--green); }
+    .flow-arrow.done .flow-arrow-line::after { border-left-color: var(--green); }
+    @keyframes arrowPulse {
+      from { opacity: 0.5; }
+      to   { opacity: 1; }
+    }
+
+    /* Status dot on node */
+    .flow-status-dot {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 7px; height: 7px;
       border-radius: 50%;
-      flex-shrink: 0;
+      background: var(--muted);
+      transition: background 0.3s;
     }
-    .phase-gke       { background: var(--blue); }
-    .phase-anthropic { background: #a855f7; }
-    .phase-tailscale { background: var(--green); }
-    .phase-pi        { background: var(--yellow); }
+    .flow-node-box.active .flow-status-dot { background: var(--yellow); animation: pulse 1s infinite; }
+    .flow-node-box.done   .flow-status-dot { background: var(--green); animation: none; }
+    .flow-node-box.error  .flow-status-dot { background: var(--red); animation: none; }
 
     /* ── Resize handle ── */
     #resize-handle {
@@ -620,6 +735,77 @@
 
   <!-- RIGHT COLUMN -->
   <div class="right-col">
+
+    <!-- Request Flow Diagram -->
+    <div id="flow-diagram">
+      <div id="flow-diagram-title">Request Flow</div>
+      <div class="flow-nodes">
+
+        <div class="flow-node">
+          <div class="flow-node-box idle" id="node-dev">
+            <span class="flow-status-dot"></span>
+            <span class="flow-node-icon">👨‍💻</span>
+            <span class="flow-node-label">Developer</span>
+          </div>
+        </div>
+
+        <div class="flow-arrow" id="arrow-dev-gke"><div class="flow-arrow-line"></div></div>
+
+        <div class="flow-node">
+          <div class="flow-node-box idle" id="node-gke">
+            <span class="flow-status-dot"></span>
+            <span class="flow-node-icon">🌐</span>
+            <span class="flow-node-label">GKE API</span>
+            <span class="flow-node-sublabel">Flask</span>
+          </div>
+        </div>
+
+        <div class="flow-arrow" id="arrow-gke-claude"><div class="flow-arrow-line"></div></div>
+
+        <div class="flow-node">
+          <div class="flow-node-box idle" id="node-claude">
+            <span class="flow-status-dot"></span>
+            <span class="flow-node-icon">🤖</span>
+            <span class="flow-node-label">Agent</span>
+            <span class="flow-node-sublabel">Running</span>
+          </div>
+        </div>
+
+        <div class="flow-arrow" id="arrow-claude-ts"><div class="flow-arrow-line"></div></div>
+
+        <div class="flow-node">
+          <div class="flow-node-box idle" id="node-tailscale">
+            <span class="flow-status-dot"></span>
+            <span class="flow-node-icon">🔗</span>
+            <span class="flow-node-label">Tailscale</span>
+            <span class="flow-node-sublabel">WireGuard</span>
+          </div>
+        </div>
+
+        <div class="flow-arrow" id="arrow-ts-pi"><div class="flow-arrow-line"></div></div>
+
+        <div class="flow-node">
+          <div class="flow-node-box idle" id="node-pi">
+            <span class="flow-status-dot"></span>
+            <span class="flow-node-icon">🥧</span>
+            <span class="flow-node-label">Pi API</span>
+            <span class="flow-node-sublabel">:8080</span>
+          </div>
+        </div>
+
+        <div class="flow-arrow" id="arrow-pi-sandbox"><div class="flow-arrow-line"></div></div>
+
+        <div class="flow-node">
+          <div class="flow-node-box idle" id="node-sandbox">
+            <span class="flow-status-dot"></span>
+            <span class="flow-node-icon">📦</span>
+            <span class="flow-node-label">Sandbox</span>
+            <span class="flow-node-sublabel">Docker</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
 
     <!-- Live Feed -->
     <div id="live-feed-header">
@@ -1001,7 +1187,9 @@ function startHistoryPolling() {
 function clearFeed() {
   document.getElementById('live-feed-entries').innerHTML = '';
   document.getElementById('result-panel').classList.add('hidden');
+  document.getElementById('v-resize-handle').classList.add('hidden');
   document.getElementById('result-body').innerHTML = '';
+  resetFlow();
 }
 
 function setFeedTaskId(id) {
@@ -1082,10 +1270,13 @@ function openTaskStream(taskId) {
     (evt) => {
       if (evt.type === 'log') {
         renderFeedEntry(evt.entry);
+        updateFlowFromEvent(evt.entry);
       } else if (evt.type === 'status') {
         setFeedStatus(evt.status);
         renderStatusChange(evt.status);
-        // Update task in local state
+        if (evt.status === 'done' || evt.status === 'error' || evt.status === 'cancelled') {
+          finalizeFlow(evt.status);
+        }
         const t = state.tasks.find(t => t.id === taskId);
         if (t) t.status = evt.status;
         renderTaskHistory();
@@ -1152,6 +1343,103 @@ function handleUnauthorized() {
   sessionStorage.removeItem('apiKey');
   setAuth(false);
   showToast('Session expired — please reconnect.', 'warning');
+}
+
+// ── Flow Diagram ──────────────────────────────────────────────────────────
+const flowNodes = {
+  dev:       document.getElementById('node-dev'),
+  gke:       document.getElementById('node-gke'),
+  claude:    document.getElementById('node-claude'),
+  tailscale: document.getElementById('node-tailscale'),
+  pi:        document.getElementById('node-pi'),
+  sandbox:   document.getElementById('node-sandbox'),
+};
+const flowArrows = {
+  'dev-gke':     document.getElementById('arrow-dev-gke'),
+  'gke-claude':  document.getElementById('arrow-gke-claude'),
+  'claude-ts':   document.getElementById('arrow-claude-ts'),
+  'ts-pi':       document.getElementById('arrow-ts-pi'),
+  'pi-sandbox':  document.getElementById('arrow-pi-sandbox'),
+};
+
+function setFlowNode(nodeKey, state) {
+  const el = flowNodes[nodeKey];
+  if (!el) return;
+  el.classList.remove('idle', 'active', 'done', 'error');
+  el.classList.add(state);
+}
+
+function setFlowArrow(arrowKey, state) {
+  const el = flowArrows[arrowKey];
+  if (!el) return;
+  el.classList.remove('idle', 'active', 'done', 'error');
+  if (state !== 'idle') el.classList.add(state);
+}
+
+function resetFlow() {
+  Object.keys(flowNodes).forEach(k => setFlowNode(k, 'idle'));
+  Object.keys(flowArrows).forEach(k => setFlowArrow(k, 'idle'));
+}
+
+function updateFlowFromEvent(entry) {
+  if (entry.type !== 'system') return;
+  const phase = entry.data.phase;
+  const text = entry.data.text || '';
+
+  if (phase === 'gke') {
+    if (text.includes('HTTP POST')) {
+      setFlowNode('dev', 'active');
+      setFlowArrow('dev-gke', 'active');
+      setFlowNode('gke', 'active');
+    } else if (text.includes('Worker thread')) {
+      setFlowNode('dev', 'done');
+      setFlowArrow('dev-gke', 'done');
+      setFlowNode('gke', 'active');
+    } else if (text.includes('completed')) {
+      setFlowNode('gke', 'done');
+    } else if (text.includes('cancelled') || text.includes('failed')) {
+      setFlowNode('gke', 'error');
+    }
+  } else if (phase === 'anthropic') {
+    if (text.includes('Calling')) {
+      setFlowArrow('gke-claude', 'active');
+      setFlowNode('claude', 'active');
+    } else if (text.includes('responded')) {
+      setFlowArrow('gke-claude', 'done');
+      setFlowNode('claude', 'done');
+    }
+  } else if (phase === 'tailscale') {
+    setFlowArrow('claude-ts', 'active');
+    setFlowNode('tailscale', 'active');
+    setFlowArrow('ts-pi', 'active');
+    setFlowNode('pi', 'active');
+    setFlowArrow('pi-sandbox', 'active');
+    setFlowNode('sandbox', 'active');
+  } else if (phase === 'pi') {
+    if (text.includes('responded')) {
+      setFlowArrow('claude-ts', 'done');
+      setFlowNode('tailscale', 'done');
+      setFlowArrow('ts-pi', 'done');
+      setFlowNode('pi', 'done');
+      setFlowArrow('pi-sandbox', 'done');
+      setFlowNode('sandbox', 'done');
+      // Reset claude for next round
+      setFlowNode('claude', 'idle');
+      setFlowArrow('gke-claude', 'idle');
+    } else if (text.includes('error') || text.includes('timed out')) {
+      setFlowNode('pi', 'error');
+      setFlowNode('sandbox', 'error');
+    }
+  }
+}
+
+function finalizeFlow(status) {
+  if (status === 'done') {
+    Object.keys(flowNodes).forEach(k => setFlowNode(k, 'done'));
+    Object.keys(flowArrows).forEach(k => setFlowArrow(k, 'done'));
+  } else if (status === 'error' || status === 'cancelled') {
+    setFlowNode('gke', status === 'cancelled' ? 'idle' : 'error');
+  }
 }
 
 // ── Resizable panels ──────────────────────────────────────────────────────
