@@ -85,7 +85,9 @@
     .pill.queued  { background: #1e3a5f; color: var(--blue); }
     .pill.running { background: var(--accent-dim); color: #a5b4fc; }
     .pill.done    { background: var(--green-dim); color: var(--green); }
-    .pill.error   { background: var(--red-dim); color: var(--red); }
+    .pill.error     { background: var(--red-dim); color: var(--red); }
+    .pill.cancelled { background: #2d2d2d; color: var(--muted); }
+    .pill.timed_out { background: #3d2a00; color: #f59e0b; }
 
     .dot {
       width: 7px; height: 7px;
@@ -1328,7 +1330,7 @@ function openTaskStream(taskId) {
       } else if (evt.type === 'status') {
         setFeedStatus(evt.status);
         renderStatusChange(evt.status);
-        if (evt.status === 'done' || evt.status === 'error' || evt.status === 'cancelled') {
+        if (evt.status === 'done' || evt.status === 'error' || evt.status === 'cancelled' || evt.status === 'timed_out') {
           finalizeFlow(evt.status);
         }
         const t = state.tasks.find(t => t.id === taskId);
@@ -1491,8 +1493,8 @@ function finalizeFlow(status) {
   if (status === 'done') {
     Object.keys(flowNodes).forEach(k => setFlowNode(k, 'done'));
     Object.keys(flowArrows).forEach(k => setFlowArrow(k, 'done'));
-  } else if (status === 'error' || status === 'cancelled') {
-    setFlowNode('gke', status === 'cancelled' ? 'idle' : 'error');
+  } else if (status === 'error' || status === 'cancelled' || status === 'timed_out') {
+    setFlowNode('gke', (status === 'cancelled' || status === 'timed_out') ? 'idle' : 'error');
   }
 }
 

@@ -21,6 +21,7 @@ CORS(app, resources={r"/*": {"origins": "*", "allow_headers": ["X-API-Key", "Con
 
 # In-memory task store and queue (single pod — fine for this project scale)
 QUEUE_MAX = 20
+TASK_TIMEOUT = 3600  # seconds — max total task duration (60 minutes)
 tasks = {}
 task_queue = Queue(maxsize=QUEUE_MAX)
 
@@ -94,6 +95,7 @@ def worker():
     while True:
         task_id = task_queue.get()
         tasks[task_id]["status"] = "running"
+        tasks[task_id]["started_at"] = time.time()
         description = tasks[task_id]["description"]
         logger.info("Task %s started: %s", task_id, description)
         try:
@@ -116,13 +118,24 @@ def worker():
                 pi_token=_secrets["pi-execute-token"],
                 anthropic_api_key=_secrets["anthropic-api-key"],
                 emit=emit,
-                is_cancelled=lambda: tasks[task_id].get("cancelled", False),
+                is_cancelled=lambda: (
+                    tasks[task_id].get("cancelled", False) or
+                    (time.time() - tasks[task_id]["started_at"]) > TASK_TIMEOUT
+                ),
             )
             if tasks[task_id].get("cancelled"):
-                tasks[task_id]["status"] = "cancelled"
-                tasks[task_id]["result"] = {"summary": "Task was cancelled."}
-                emit("system", {"text": "Task cancelled by user", "phase": "gke"})
-                logger.info("Task %s cancelled", task_id)
+                elapsed = time.time() - tasks[task_id]["started_at"]
+                timed_out = elapsed > TASK_TIMEOUT
+                if timed_out:
+                    tasks[task_id]["status"] = "timed_out"
+                    tasks[task_id]["result"] = {"summary": f"Task timed out after {int(elapsed)}s."}
+                    emit("system", {"text": f"Task timed out after {int(elapsed)}s", "phase": "gke"})
+                    logger.info("Task %s timed out after %ds", task_id, int(elapsed))
+                else:
+                    tasks[task_id]["status"] = "cancelled"
+                    tasks[task_id]["result"] = {"summary": "Task was cancelled."}
+                    emit("system", {"text": "Task cancelled by user", "phase": "gke"})
+                    logger.info("Task %s cancelled", task_id)
             else:
                 tasks[task_id]["status"] = "done"
                 tasks[task_id]["result"] = result
@@ -210,7 +223,7 @@ def cancel_task(task_id):
     task = tasks.get(task_id)
     if not task:
         return jsonify({"error": "Task not found"}), 404
-    if task["status"] in ("done", "error", "cancelled"):
+    if task["status"] in ("done", "error", "cancelled", "timed_out"):
         return jsonify({"error": f"Task already {task['status']}"}), 400
     task["cancelled"] = True
     logger.info("Task %s cancel requested", task_id)
@@ -273,7 +286,7 @@ def stream_task(task_id):
                 yield f"data: {json.dumps({'type': 'status', 'id': task['id'], 'status': current_status})}\n\n"
                 last_status = current_status
 
-            if current_status in ("done", "error", "cancelled"):
+            if current_status in ("done", "error", "cancelled", "timed_out"):
                 yield f"data: {json.dumps({'type': 'result', 'result': task['result']})}\n\n"
                 break
 
