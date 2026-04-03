@@ -20,8 +20,9 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "allow_headers": ["X-API-Key", "Content-Type"]}})
 
 # In-memory task store and queue (single pod — fine for this project scale)
+QUEUE_MAX = 20
 tasks = {}
-task_queue = Queue()
+task_queue = Queue(maxsize=QUEUE_MAX)
 
 # Secrets loaded at startup
 _secrets = {}
@@ -143,12 +144,19 @@ def index():
 
 @app.route("/health")
 def health():
+    queued = task_queue.qsize()
+    running = sum(1 for t in tasks.values() if t["status"] == "running")
     return jsonify({
         "api": "ok",
         "pi": {
             "online": pi_health["online"],
             "last_checked": pi_health["last_checked"],
             "error": pi_health["error"],
+        },
+        "queue": {
+            "queued": queued,
+            "running": running,
+            "capacity": QUEUE_MAX,
         },
     })
 
@@ -163,6 +171,10 @@ def create_task():
     if not pi_health["online"]:
         logger.warning("Task rejected — Pi is offline: %s", pi_health["error"])
         return jsonify({"error": "Pi is offline", "detail": pi_health["error"]}), 503
+
+    if task_queue.full():
+        logger.warning("Task rejected — queue full (%d/%d)", task_queue.qsize(), QUEUE_MAX)
+        return jsonify({"error": "Queue full", "detail": f"System is at capacity ({QUEUE_MAX} tasks queued). Try again later."}), 429
 
     task_id = str(uuid.uuid4())
     tasks[task_id] = {
