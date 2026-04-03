@@ -1,4 +1,4 @@
-Which code deploys the GKE cluster and hosts the HTTP API server?
+# Which code deploys the GKE cluster and hosts the HTTP API server?
 
 Infrastructure: terraform/main.tf  
 - Lines 57–95: GKE cluster pi-agent-cluster, zone us-central1-a, e2-small nodes, autoscaling 1–10  
@@ -10,9 +10,11 @@ Kubernetes: gke-api/deployment.yaml (line 1–55) + gke-api/service.yaml
 
 The API server code: gke-api/app.py  
 - Flask app, listens on port 8080  
-- Entrypoint: CMD ["python", "app.py"] in gke-api/Dockerfile  
+- Entrypoint: CMD ["python", "app.py"] in gke-api/Dockerfile
 
-Which portion runs AI agents? Is an agent spawned per developer HTTP request?
+---
+
+# Which portion runs AI agents? Is an agent spawned per developer HTTP request?
 
 Yes — one agent per task.
 
@@ -26,8 +28,9 @@ Flow:
 The agent is not a separate process or pod — it runs as a function call inside the worker thread. One task at a time  
 (single worker, serial queue).  
 
+---
 
-Q3: Are results returned to the developer through the API?
+# Are results returned to the developer through the API?
 
 Yes, via Server-Sent Events (SSE).
 
@@ -41,7 +44,7 @@ Event types emitted: system, thought, command, output, summary, status, result
 
 ---
 
-Q4: Are only internal developers able to access the API?
+# Are only internal developers able to access the API?
 
 Partially — API key gates access, but the endpoint is public.
 
@@ -56,7 +59,7 @@ requirement, or rate limiting.
 
 ---
 
-Q5: Are only authorized agents able to connect to the Pi?
+# Are only authorized agents able to connect to the Pi?
 
 Yes — two enforcement layers.
 
@@ -73,7 +76,7 @@ Both must pass. Network-level (Tailscale ACL) blocks the connection before any H
 
 ---
 
-Q6: How are agents specifically authorized vs other agents in the cluster?
+# How are agents specifically authorized vs other agents in the cluster?
 
 The GKE pod is the only entity that runs agents. Authorization is enforced by:
 
@@ -88,7 +91,7 @@ multiple replicas, all would share the same token.
 
 ---
 
-Q7: Can we recreate the entire setup from IaC? Which file?
+# Can we recreate the entire setup from IaC? Which file?
 
 Most of it, yes.
 
@@ -108,7 +111,7 @@ The K8s tailscale-auth-key secret is the only IaC gap (noted as known limitation
 
 ---
 
-Q8: Do we have visibility into what's happening on the Pi? Can developers see task status?
+# Do we have visibility into what's happening on the Pi? Can developers see task status?
 
 Yes — multiple layers.
 
@@ -131,7 +134,7 @@ panel, task history.
 
 ---
 
-Q9: Handling concurrent requests? Is there a queuing system?
+# Handling concurrent requests? Is there a queuing system?
 
 Yes — Python Queue with a single worker thread.
 
@@ -152,20 +155,20 @@ What this means for concurrency:
 
 ---
 
-Q10: Task prioritization and preventing Pi resource conflicts?
+# Task prioritization and preventing Pi resource conflicts?
 
 No prioritization. Resource conflict prevention via serial execution.
 
 Prioritization: Not implemented. Python Queue is strictly FIFO. There is no priority queue, no VIP task lanes, no  
 preemption.  
 
-Resource conflict prevention:  
+# Resource conflict prevention:  
 - Single worker thread = only one agent runs at a time = only one command executes on Pi at a time → app.py:282  
 - Pi health check blocks new tasks if Pi is offline: app.py:164–167 returns 503 → prevents queueing work that can't run  
 - Docker sandbox limits per-command resource usage on Pi: --cpus=0.5 --memory=512m → pi-api/app.py:47–56  
 - 10-round agent limit prevents runaway tasks: agent.py:50  
 
-What's NOT protected:  
+# What's NOT protected:  
 - Queue depth: unbounded — many tasks can pile up  
 - Long-running tasks can starve others (no timeout on total task duration, only per-command 60s)  
 - If Pi goes offline mid-task, the task errors but remaining queued tasks will also fail until Pi recovers  
