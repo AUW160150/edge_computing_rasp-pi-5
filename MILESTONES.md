@@ -160,4 +160,4 @@ Tasks:
 | **Excellent** | Above + production-ready infrastructure, comprehensive security, graceful error handling, clear documentation |
 | **Exceptional** | Above + stretch goals, novel solutions to connectivity challenges, deep systems thinking |
 
-**Remember**: The goal is NOT perfect code in 3 days. We want to see your problem-solving approach, infrastructure thinking, and ability to build systems under constraints. All infrastructure must be reproducible from your IaC definitions.
+All infrastructure must be reproducible from your IaC definitions.
