@@ -1,5 +1,7 @@
 # System Design Architecture
 
+Demo: https://youtu.be/Dd1K1JYvp-A 
+
 ## Overview
 
 A cloud-to-edge AI agent platform. Developers submit natural language tasks via HTTP to a GKE-hosted API. A Claude AI agent interprets the task, executes shell commands on a physical Raspberry Pi 5 through a Tailscale WireGuard mesh, and streams results back in real time.
